@@ -92,6 +92,8 @@ export async function workspaceUp(params: {
   devcontainer?: string
   prebuildRepository?: string
   platform?: string
+  /** Clone a git source into a docker volume (docker provider only). */
+  cloneIntoVolume?: boolean
   recovery?: boolean
   commandId?: string
 }): Promise<string> {

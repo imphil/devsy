@@ -2179,6 +2179,7 @@ export function registerIpcHandlers(deps: IpcDependencies): {
     devcontainer?: string
     prebuildRepository?: string
     platform?: string
+    cloneIntoVolume?: boolean
     recovery?: boolean
     commandId?: string
   }): { commandId: string; completion: Promise<void> } => {
@@ -2198,6 +2199,7 @@ export function registerIpcHandlers(deps: IpcDependencies): {
     if (args.prebuildRepository)
       cliArgs.push("--prebuild-repo", args.prebuildRepository)
     if (args.platform) cliArgs.push("--platform", args.platform)
+    if (args.cloneIntoVolume) cliArgs.push("--clone-into-volume")
     if (args.recovery) cliArgs.push("--recovery")
 
     const wsId = args.workspaceId ?? args.source

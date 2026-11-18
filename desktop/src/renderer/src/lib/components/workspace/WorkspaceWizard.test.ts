@@ -1178,6 +1178,79 @@ describe("WorkspaceWizard", () => {
     unmount()
   })
 
+  async function openGitAdvancedOptions(provider: string) {
+    providers.set([makeProvider(provider)])
+    const rendered = render(WorkspaceWizard, { props: { open: true } })
+    await flushAsync()
+    await fireEvent.click(rendered.getByText(provider))
+    await flushAsync()
+    await fireEvent.click(getActiveContinue(rendered.getByText))
+    await flushAsync()
+    const repoInput = document.querySelector(
+      'input[placeholder*="github.com/org/repo"]',
+    ) as HTMLInputElement
+    await fireEvent.input(repoInput, {
+      target: { value: "github.com/org/repo" },
+    })
+    const advancedToggle = Array.from(document.querySelectorAll("button")).find(
+      (b) => /advanced options/i.test(b.textContent ?? ""),
+    ) as HTMLElement
+    await fireEvent.click(advancedToggle)
+    await flushAsync()
+    const checkbox = document.getElementById(
+      "workspace-clone-into-volume",
+    ) as HTMLInputElement
+    return { ...rendered, checkbox }
+  }
+
+  async function launchFromSource(getByText: (text: string) => HTMLElement) {
+    await fireEvent.click(getActiveContinue(getByText))
+    await flushAsync()
+    await fireEvent.click(getActiveContinue(getByText))
+    await flushAsync()
+    const launchBtn = Array.from(document.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "Launch",
+    ) as HTMLButtonElement
+    await fireEvent.click(launchBtn)
+    await flushAsync()
+  }
+
+  it("forwards clone-into-volume for a git source on the docker provider", async () => {
+    const { checkbox, getByText, unmount } =
+      await openGitAdvancedOptions("docker")
+    expect(checkbox.disabled).toBe(false)
+    await fireEvent.click(checkbox)
+    await flushAsync()
+
+    await launchFromSource(getByText)
+
+    expect(workspaceUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "github.com/org/repo",
+        cloneIntoVolume: true,
+      }),
+    )
+    unmount()
+  })
+
+  it("disables clone-into-volume for providers other than docker", async () => {
+    const { checkbox, getByText, unmount } =
+      await openGitAdvancedOptions("kubernetes")
+    expect(checkbox.disabled).toBe(true)
+    expect(
+      document.body.textContent?.includes(
+        "Only available with the docker provider.",
+      ),
+    ).toBe(true)
+
+    await launchFromSource(getByText)
+
+    expect(workspaceUp).toHaveBeenCalledWith(
+      expect.objectContaining({ cloneIntoVolume: undefined }),
+    )
+    unmount()
+  })
+
   it("forwards an image source as a bare ref with workspaceFolder kept separate", async () => {
     providers.set([makeProvider("docker")])
     const { getByText, unmount } = render(WorkspaceWizard, {
