@@ -40,6 +40,7 @@ var addHostSectionTestCases = []struct {
 	command         string
 	gpgagent        bool
 	agentForwarding bool
+	x11Forwarding   bool
 	devsyHome       string
 	provider        string
 	expected        string
@@ -65,6 +66,29 @@ Host testhost
   StrictHostKeyChecking no
   UserKnownHostsFile /dev/null
   HostKeyAlgorithms rsa-sha2-256,rsa-sha2-512,ssh-rsa
+  ProxyCommand "/path/to/exec" workspace ssh --stdio --context testcontext --user testuser testworkspace
+  User testuser
+# Devsy End testhost`,
+	},
+	{
+		name:            "Host addition with X11 forwarding",
+		config:          "",
+		execPath:        testExecPath,
+		host:            testHostBasic,
+		user:            testUser,
+		context:         testContextAlt,
+		workspace:       testWorkspaceAlt,
+		agentForwarding: true,
+		x11Forwarding:   true,
+		expected: `# Devsy Start testhost
+Host testhost
+  ForwardAgent yes
+  LogLevel error
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  HostKeyAlgorithms rsa-sha2-256,rsa-sha2-512,ssh-rsa
+  ForwardX11 yes
+  ForwardX11Trusted yes
   ProxyCommand "/path/to/exec" workspace ssh --stdio --context testcontext --user testuser testworkspace
   User testuser
 # Devsy End testhost`,
@@ -354,6 +378,7 @@ func (s *SSHConfigTestSuite) TestAddHostSection() {
 				command:         tt.command,
 				gpgagent:        tt.gpgagent,
 				agentForwarding: tt.agentForwarding,
+				x11Forwarding:   tt.x11Forwarding,
 				devsyHome:       tt.devsyHome,
 				provider:        tt.provider,
 			})
