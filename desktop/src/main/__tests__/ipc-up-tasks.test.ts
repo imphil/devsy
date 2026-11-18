@@ -170,6 +170,28 @@ describe("workspace_up detached task tracking", () => {
     vi.clearAllMocks()
   })
 
+  it("passes --clone-into-volume to workspace up only when requested", async () => {
+    const { calls } = setup()
+    const handler = handlers.get("workspace_up")
+    if (!handler) throw new Error("workspace_up not registered")
+
+    await handler(trustedEvent, {
+      source: "github.com/org/repo",
+      workspaceId: "ws-vol",
+      cloneIntoVolume: true,
+    })
+    await handler(trustedEvent, {
+      source: "github.com/org/repo",
+      workspaceId: "ws-bind",
+    })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    const upFor = (id: string) =>
+      calls.find((a) => a[0] === "workspace" && a[1] === "up" && a.includes(id))
+    expect(upFor("ws-vol")).toContain("--clone-into-volume")
+    expect(upFor("ws-bind")).not.toContain("--clone-into-volume")
+  })
+
   it("stop cancels an active start before launching", async () => {
     const { calls } = setup()
 
