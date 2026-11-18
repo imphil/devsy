@@ -153,6 +153,7 @@ type server struct {
 	workdir     string
 	reuseSock   string
 	sshServer   ssh.Server
+	x11         x11Displays
 }
 
 // ServerOptions configures NewServer.
@@ -222,6 +223,7 @@ func buildSSHServer(addr string) ssh.Server {
 			return true
 		},
 		ReverseUnixForwardingCallback: reverseUnixForwardingCallback,
+		X11ForwardingCallback:         x11ForwardingCallback,
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip":                   ssh.DirectTCPIPHandler,
 			"direct-streamlocal@openssh.com": ssh.DirectStreamLocalHandler,
@@ -326,15 +328,18 @@ func (intent *connAgentIntent) ensureState() (*connAgentState, error) {
 }
 
 func (s *server) Serve(listener net.Listener) error {
+	defer s.x11.closeAll()
 	return s.sshServer.Serve(listener)
 }
 
 func (s *server) ListenAndServe() error {
 	log.Debugf("Start ssh server on %s", s.sshServer.Addr)
+	defer s.x11.closeAll()
 	return s.sshServer.ListenAndServe()
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
+	defer s.x11.closeAll()
 	return s.sshServer.Shutdown(ctx)
 }
 
@@ -356,6 +361,11 @@ func (s *server) handler(sess ssh.Session) {
 			exitWithError(sess, aErr)
 			return
 		}
+	}
+
+	// The server already runs as the session's user, so nothing to chown.
+	if cleanup := setupX11(sess, cmd, s.currentUser, false, &s.x11); cleanup != nil {
+		defer cleanup()
 	}
 
 	// start shell session
