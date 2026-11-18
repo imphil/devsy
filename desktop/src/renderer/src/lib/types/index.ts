@@ -48,7 +48,16 @@ export interface Workspace {
   sshHostAlias?: string
   preferredSSHHost?: string
   canonicalSSHHost?: string
+  sourceLocation?: WorkspaceSourceLocation
   pro?: WorkspacePlatformMetadata
+}
+
+/** Where a workspace's source code lives (pkg/provider WorkspaceSourceLocation). */
+export interface WorkspaceSourceLocation {
+  kind: "volume" | "hostFolder" | "localFolder" | "remote"
+  /** Folder on this machine, or the worktree path inside the volume. */
+  path?: string
+  volumeName?: string
 }
 
 export type OptionValue = string | number | boolean
