@@ -56,7 +56,7 @@ func (d *LocalDockerDelivery) SeedWorkspaceVolume(
 
 	labels := pkgconfig.DockerVolumeLabels(opts.WorkspaceID, pkgconfig.VolumeRoleWorkspace)
 	labels[pkgconfig.DockerSeededLabel] = pkgconfig.LabelValueTrue
-	if err := d.createVolume(ctx, opts.VolumeName, labels); err != nil {
+	if err := d.CreateVolume(ctx, opts.VolumeName, labels); err != nil {
 		return fmt.Errorf("create workspace volume: %w", err)
 	}
 

@@ -31,6 +31,7 @@ const (
 	VolumeRoleWorkspace = "workspace"
 	VolumeRoleAgent     = "agent"
 	VolumeRoleFeature   = "feature"
+	VolumeRoleContent   = "content"
 
 	DevcontainerIDLabel       = "dev.containers.id"
 	DevcontainerMetadataLabel = "devcontainer.metadata"

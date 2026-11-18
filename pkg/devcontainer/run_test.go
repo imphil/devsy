@@ -212,7 +212,7 @@ func TestGetWorkspace_CustomWorkspaceMount(t *testing.T) {
 		},
 	}
 
-	mount, folder := getWorkspace("/ignored", "ws-id", conf)
+	mount, folder := getWorkspace("/ignored", "ws-id", conf, nil)
 
 	if !contains(mount, customMount) {
 		t.Fatalf("expected workspaceMount string to contain original, got %q", mount)
@@ -225,7 +225,7 @@ func TestGetWorkspace_CustomWorkspaceMount(t *testing.T) {
 func TestGetWorkspace_DefaultMount(t *testing.T) {
 	conf := &config.DevContainerConfig{}
 
-	mount, folder := getWorkspace("/home/user/project", "abc123", conf)
+	mount, folder := getWorkspace("/home/user/project", "abc123", conf, nil)
 
 	if !contains(mount, "type=bind") || !contains(mount, "source=/home/user/project") {
 		t.Fatalf("expected bind mount with source, got %q", mount)
@@ -245,7 +245,7 @@ func TestGetWorkspace_DefaultMountWithWorkspaceFolder(t *testing.T) {
 		},
 	}
 
-	mount, folder := getWorkspace("/home/user/project", "ws-id", conf)
+	mount, folder := getWorkspace("/home/user/project", "ws-id", conf, nil)
 
 	if !contains(mount, "type=bind") || !contains(mount, "target=/app") {
 		t.Fatalf("expected bind mount with target /app, got %q", mount)
@@ -262,7 +262,7 @@ func TestGetWorkspace_EmptyWorkspaceMount(t *testing.T) {
 		},
 	}
 
-	mount, folder := getWorkspace("/home/user/project", "ws-id", conf)
+	mount, folder := getWorkspace("/home/user/project", "ws-id", conf, nil)
 
 	if mount != "" {
 		t.Fatalf("expected empty mount string (suppressed), got %q", mount)
@@ -275,10 +275,36 @@ func TestGetWorkspace_EmptyWorkspaceMount(t *testing.T) {
 func TestGetWorkspace_NilWorkspaceMount(t *testing.T) {
 	conf := &config.DevContainerConfig{}
 
-	mount, folder := getWorkspace("/home/user/project", "ws-id", conf)
+	mount, folder := getWorkspace("/home/user/project", "ws-id", conf, nil)
 
 	if !contains(mount, "type=bind") {
 		t.Fatalf("expected default bind mount for nil WorkspaceMount, got %q", mount)
+	}
+	if folder != "/workspaces/ws-id" {
+		t.Fatalf("expected default folder, got %q", folder)
+	}
+}
+
+func TestGetWorkspace_CloneIntoVolume(t *testing.T) {
+	conf := &config.DevContainerConfig{}
+	volume := &contentVolumeMount{name: "devsy-content-abc123", subpath: "worktrees/ws-id"}
+
+	mount, folder := getWorkspace("/ignored", "ws-id", conf, volume)
+
+	if !contains(mount, "type=volume") {
+		t.Fatalf("expected a volume mount, got %q", mount)
+	}
+	if !contains(mount, "source=devsy-content-abc123") {
+		t.Fatalf("expected volume source, got %q", mount)
+	}
+	if !contains(mount, "volume-subpath=worktrees/ws-id") {
+		t.Fatalf("expected volume subpath, got %q", mount)
+	}
+	if contains(mount, "type=bind") {
+		t.Fatalf("volume mount should not also be a bind mount, got %q", mount)
+	}
+	if contains(mount, "consistency=") {
+		t.Fatalf("a named volume has no bind-mount consistency option, got %q", mount)
 	}
 	if folder != "/workspaces/ws-id" {
 		t.Fatalf("expected default folder, got %q", folder)
@@ -293,7 +319,7 @@ func TestGetWorkspace_UserConsistencyPreserved(t *testing.T) {
 		},
 	}
 
-	mount, _ := getWorkspace("/ignored", "ws-id", conf)
+	mount, _ := getWorkspace("/ignored", "ws-id", conf, nil)
 
 	if !contains(mount, "consistency=delegated") {
 		t.Fatalf("expected user consistency=delegated preserved, got %q", mount)

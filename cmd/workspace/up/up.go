@@ -70,6 +70,10 @@ type UpCmd struct {
 
 	// Read via Changed() so unset is distinguishable from explicit false.
 	pullFromInsideContainerFlag bool
+	// CloneIntoVolume opts a newly-created workspace into cloning its git
+	// source into a docker-native volume instead of a host bind mount.
+	// Creation-time only; ignored with a warning for an existing workspace.
+	CloneIntoVolume bool
 	// See cmd.runDetached.
 	Detach               bool
 	InteractivePostStart bool
