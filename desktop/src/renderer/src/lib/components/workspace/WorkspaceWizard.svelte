@@ -267,6 +267,7 @@ let devcontainerMode = $state<DevcontainerMode>("auto")
 let devcontainerValue = $state("")
 let prebuildRepository = $state("")
 let workspaceFolder = $state("")
+let cloneIntoVolume = $state(false)
 let advancedOpen = $state(false)
 let selectedIde = $state("none")
 let workspaceName = $state("")
@@ -294,6 +295,13 @@ let assembled = $derived(
           devcontainer: { mode: devcontainerMode, value: devcontainerValue },
           prebuildRepository,
         }),
+)
+
+// The CLI accepts --clone-into-volume only for a git source on the provider
+// named "docker" (pkg/workspace applyCloneIntoVolume).
+let cloneIntoVolumeSupported = $derived(selectedProvider === "docker")
+let useCloneIntoVolume = $derived(
+  cloneIntoVolume && cloneIntoVolumeSupported && sourceType === "git",
 )
 
 let primarySourceValue = $derived(
@@ -537,6 +545,7 @@ function reset() {
   devcontainerValue = ""
   prebuildRepository = ""
   workspaceFolder = ""
+  cloneIntoVolume = false
   advancedOpen = false
   selectedIde = "none"
   workspaceName = ""
@@ -879,6 +888,7 @@ async function handleLaunch(recovery = false) {
         imageIncompatible && emulationEnabled && emulationTarget
           ? emulationTarget
           : undefined,
+      cloneIntoVolume: useCloneIntoVolume || undefined,
       recovery,
     })
 
@@ -1060,6 +1070,29 @@ function selectTemplate(t: { name: string; source: string }) {
               The folder inside the repo that holds your project. Leave blank to use the repo root.
             </p>
           </div>
+
+          <label class="flex items-start gap-2 text-sm">
+            <input
+              id="workspace-clone-into-volume"
+              type="checkbox"
+              class="mt-0.5"
+              checked={cloneIntoVolume && cloneIntoVolumeSupported}
+              disabled={!cloneIntoVolumeSupported}
+              onchange={(e) => (cloneIntoVolume = e.currentTarget.checked)}
+            />
+            <span class={cloneIntoVolumeSupported ? "" : "text-muted-foreground"}>
+              <span class="font-medium">Clone into a Docker volume</span>
+              <span class="block text-xs text-muted-foreground">
+                {#if cloneIntoVolumeSupported}
+                  Keeps the source in a Docker volume instead of a folder on this machine. Faster file
+                  access with Docker Desktop, WSL2 and Lima; the files are only reachable from inside
+                  the container. Can't be changed after the workspace is created.
+                {:else}
+                  Only available with the docker provider.
+                {/if}
+              </span>
+            </span>
+          </label>
         {/if}
 
         <div class="space-y-1.5">
@@ -1518,6 +1551,12 @@ function selectTemplate(t: { name: string; source: string }) {
               <div class="grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)] items-start gap-3">
                 <dt class="text-muted-foreground">Prebuild repo</dt>
                 <dd class="text-left font-medium [overflow-wrap:anywhere]">{assembled.prebuildRepository}</dd>
+              </div>
+            {/if}
+            {#if useCloneIntoVolume}
+              <div class="grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)] items-start gap-3">
+                <dt class="text-muted-foreground">Source storage</dt>
+                <dd class="text-left font-medium">Docker volume</dd>
               </div>
             {/if}
             {#if workspaceFolder}
