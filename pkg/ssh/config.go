@@ -37,6 +37,7 @@ type SSHConfigParams struct {
 	Command              string
 	GPGAgent             bool
 	AgentForwarding      bool
+	X11Forwarding        bool
 	DevsyHome            string
 	Provider             string
 	TunnelPort           int // If > 0, use TCP tunnel mode instead of ProxyCommand
@@ -78,6 +79,7 @@ func ConfigureSSHConfig(params SSHConfigParams) error {
 		command:         params.Command,
 		gpgagent:        params.GPGAgent,
 		agentForwarding: params.AgentForwarding,
+		x11Forwarding:   params.X11Forwarding,
 		devsyHome:       params.DevsyHome,
 		provider:        params.Provider,
 		tunnelPort:      params.TunnelPort,
@@ -108,6 +110,7 @@ type addHostParams struct {
 	command         string
 	gpgagent        bool
 	agentForwarding bool
+	x11Forwarding   bool
 	devsyHome       string
 	provider        string
 	tunnelPort      int
@@ -260,6 +263,16 @@ func (b *sshConfigBuilder) addSSHOptions(provider string, agentForwarding bool) 
 	return b
 }
 
+// addX11Options enables trusted X11 forwarding. Trusted, because OpenSSH's
+// untrusted default runs clients under the X SECURITY extension, which many
+// apps do not survive, and expires the cookie after ForwardX11Timeout.
+func (b *sshConfigBuilder) addX11Options(enabled bool) *sshConfigBuilder {
+	if enabled {
+		b.lines = append(b.lines, "  ForwardX11 yes", "  ForwardX11Trusted yes")
+	}
+	return b
+}
+
 func (b *sshConfigBuilder) addProxyCommand(proxyCmd string) *sshConfigBuilder {
 	b.lines = append(b.lines, proxyCmd)
 	return b
@@ -299,6 +312,7 @@ func buildProxyCommand(execPath string, params addHostParams) string {
 func buildSSHConfigLines(params addHostParams, proxyCmd string) []string {
 	return newSSHConfigBuilder(params.host, params.preferredHost, params.ownerLine).
 		addSSHOptions(params.provider, params.agentForwarding).
+		addX11Options(params.x11Forwarding).
 		addProxyCommand(proxyCmd).
 		addUser(params.user, params.host).
 		build()
@@ -308,6 +322,7 @@ func buildSSHConfigLines(params addHostParams, proxyCmd string) []string {
 func buildTunnelConfigLines(params addHostParams) []string {
 	return newSSHConfigBuilder(params.host, params.preferredHost, params.ownerLine).
 		addSSHOptions(params.provider, params.agentForwarding).
+		addX11Options(params.x11Forwarding).
 		addTunnelConnection(params.tunnelPort).
 		addUser(params.user, params.host).
 		build()

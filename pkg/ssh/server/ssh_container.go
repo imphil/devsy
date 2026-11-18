@@ -42,6 +42,7 @@ func NewContainerServer(addr string, workdir string) (Server, error) {
 
 				return true
 			},
+			X11ForwardingCallback: x11ForwardingCallback,
 			ChannelHandlers: map[string]ssh.ChannelHandler{
 				"direct-tcpip":                   ssh.DirectTCPIPHandler,
 				"direct-streamlocal@openssh.com": ssh.DirectStreamLocalHandler,
@@ -68,18 +69,22 @@ func NewContainerServer(addr string, workdir string) (Server, error) {
 type containerServer struct {
 	sshServer ssh.Server
 	workdir   string
+	x11       x11Displays
 }
 
 func (s *containerServer) Serve(listener net.Listener) error {
+	defer s.x11.closeAll()
 	return s.sshServer.Serve(listener)
 }
 
 func (s *containerServer) Shutdown(ctx context.Context) error {
+	defer s.x11.closeAll()
 	return s.sshServer.Shutdown(ctx)
 }
 
 func (s *containerServer) ListenAndServe() error {
 	log.Debugf("Start ssh server on %s", s.sshServer.Addr)
+	defer s.x11.closeAll()
 	return s.sshServer.ListenAndServe()
 }
 
@@ -110,6 +115,10 @@ func (s *containerServer) handler(sess ssh.Session) {
 		go ssh.ForwardAgentConnections(l, sess)
 
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", "SSH_AUTH_SOCK", l.Addr().String()))
+	}
+
+	if cleanup := setupX11(sess, cmd, sess.User(), true, &s.x11); cleanup != nil {
+		defer cleanup()
 	}
 
 	if isPty {
