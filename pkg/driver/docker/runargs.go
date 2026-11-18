@@ -467,6 +467,12 @@ func (d *dockerDriver) getRemoteUser(
 }
 
 func (d *dockerDriver) EnsurePath(path *config.Mount) *config.Mount {
+	// Only a bind mount's Source is a host filesystem path; a volume mount's
+	// Source is a volume name, which the WSL path rewrite below would corrupt
+	// (e.g. a --clone-into-volume workspace's named content volume).
+	if path.Type != driver.MountTypeBind {
+		return path
+	}
 	if runtime.GOOS != "windows" {
 		return path
 	}

@@ -383,10 +383,11 @@ func (cmd *UpCmd) resolveParams(
 		SSHConfigIncludePath: devsyConfig.ContextOption(
 			config.ContextOptionSSHConfigIncludePath,
 		),
-		Source:         source,
-		UID:            cmd.UID,
-		ChangeLastUsed: true,
-		Owner:          cmd.Owner,
+		Source:          source,
+		UID:             cmd.UID,
+		ChangeLastUsed:  true,
+		Owner:           cmd.Owner,
+		CloneIntoVolume: cmd.CloneIntoVolume,
 	}
 }
 

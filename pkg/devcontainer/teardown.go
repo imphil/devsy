@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/devsy-org/devsy/pkg/agent/delivery"
 	"github.com/devsy-org/devsy/pkg/devcontainer/config"
 	"github.com/devsy-org/devsy/pkg/log"
+	"github.com/devsy-org/devsy/pkg/provider"
 )
 
 type teardownStep struct {
@@ -50,7 +52,7 @@ func (r *runner) buildTeardownPlan(
 	} else if details != nil {
 		r.addContainerTeardown(plan, details, options)
 	}
-	r.addLeftoverTeardown(plan)
+	r.addLeftoverTeardown(plan, options)
 
 	return plan
 }
@@ -80,13 +82,50 @@ func (r *runner) addContainerTeardown(
 	})
 }
 
-func (r *runner) addLeftoverTeardown(plan *teardownPlan) {
+func (r *runner) addLeftoverTeardown(plan *teardownPlan, options DeleteOptions) {
 	plan.add("delivery volume cleanup", false, func(ctx context.Context) error {
-		return r.newAgentDelivery().Cleanup(ctx, r.id)
+		return r.cleanupDeliveryVolume(ctx, options.PreserveContentVolume)
 	})
 	plan.add("imported devcontainer cleanup", false, func(ctx context.Context) error {
 		return r.cleanupImportedDevContainer()
 	})
+}
+
+// cleanupDeliveryVolume removes the delivery's managed volumes for this
+// workspace. Cleanup never touches a --clone-into-volume content volume,
+// which is shared by every workspace of the same repository; a true delete
+// (not preserveContent, as used by a recreate) additionally releases this
+// workspace's worktree in it, removing the volume once no worktree is left.
+func (r *runner) cleanupDeliveryVolume(ctx context.Context, preserveContent bool) error {
+	strategy := r.newAgentDelivery()
+	err := strategy.Cleanup(ctx, r.id)
+	if preserveContent {
+		return err
+	}
+	ws := r.cloneIntoVolumeWorkspace()
+	if ws == nil {
+		return err
+	}
+	releaser, ok := strategy.(delivery.ContentVolumeReleaser)
+	if !ok {
+		return err
+	}
+	return errors.Join(err, releaser.ReleaseContentWorktree(
+		ctx, ws.ContentVolumeName, provider.ContentVolumeSubpath(r.id),
+	))
+}
+
+// cloneIntoVolumeWorkspace returns the runner's workspace if its content
+// lives in a shared content volume, or nil otherwise.
+func (r *runner) cloneIntoVolumeWorkspace() *provider.Workspace {
+	if r.workspaceConfig == nil || r.workspaceConfig.Workspace == nil {
+		return nil
+	}
+	ws := r.workspaceConfig.Workspace
+	if !ws.CloneIntoVolume || ws.ContentVolumeName == "" {
+		return nil
+	}
+	return ws
 }
 
 func (r *runner) findTeardownContainer(
