@@ -80,7 +80,10 @@ import { trackEngagement } from "$lib/analytics.js"
 import type { CommandProgress, LogEntry } from "$lib/types/index.js"
 import type { UnlistenFn } from "$lib/ipc/types.js"
 import { isRunId } from "$shared/workspace-logs.js"
-import { describeWorkspaceSource } from "$lib/utils/workspace-source.js"
+import {
+  describeSourceLocation,
+  describeWorkspaceSource,
+} from "$lib/utils/workspace-source.js"
 import {
   canonicalSshHost,
   preferredSshHost,
@@ -143,6 +146,7 @@ const IDE_OPTIONS = [
 let id = $derived(params.id ?? "")
 let workspace = $derived($workspaces.find((ws) => ws.id === id))
 let sourceDescription = $derived(describeWorkspaceSource(workspace?.source))
+let sourceLocation = $derived(describeSourceLocation(workspace?.sourceLocation))
 let workspaceDisplayLabel = $derived(workspace ? workspaceLabel(workspace) : id)
 let canonicalHost = $derived(
   workspace ? canonicalSshHost(workspace) : `${id}${SSH_HOST_SUFFIX}`,
@@ -1202,6 +1206,18 @@ async function savePresentation() {
                   <div class="space-y-1.5"><dt class="text-muted-foreground">Preferred SSH host</dt><dd class="select-text font-mono [overflow-wrap:anywhere]">{sshHost}</dd></div>
                 {/if}
                 <div class="space-y-1.5"><dt class="text-muted-foreground">UID</dt><dd class="select-text font-mono [overflow-wrap:anywhere]">{workspace.uid ?? "Not available"}</dd></div>
+                <div class="space-y-1.5 sm:col-span-2" data-slot="workspace-source-location">
+                  <dt class="text-muted-foreground">Source location</dt>
+                  <dd class="space-y-0.5">
+                    <span class="block">{sourceLocation.label}</span>
+                    {#if sourceLocation.value}
+                      <span class="block select-text font-mono [overflow-wrap:anywhere]">{sourceLocation.value}</span>
+                    {/if}
+                    {#if sourceLocation.detail}
+                      <span class="block select-text text-xs text-muted-foreground [overflow-wrap:anywhere]">{sourceLocation.detail}</span>
+                    {/if}
+                  </dd>
+                </div>
               </dl>
               <div class="mt-5 space-y-3 border-t pt-4">
                 <h3 class="font-medium">Change workspace ID</h3>

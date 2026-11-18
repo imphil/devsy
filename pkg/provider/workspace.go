@@ -10,6 +10,7 @@ import (
 	"github.com/devsy-org/api/pkg/devsy"
 	"github.com/devsy-org/devsy/pkg/config"
 	devcontainerconfig "github.com/devsy-org/devsy/pkg/devcontainer/config"
+	"github.com/devsy-org/devsy/pkg/encoding"
 	"github.com/devsy-org/devsy/pkg/git"
 	"github.com/devsy-org/devsy/pkg/types"
 	"github.com/devsy-org/devsy/pkg/util"
@@ -629,6 +630,15 @@ func isPlausibleGitSource(s string) bool {
 	// Catch nested schemes like "https://git:https://host/repo" - Host would
 	// be "git" and a real port would be missing.
 	return !strings.Contains(u.Host, ":") || u.Port() != ""
+}
+
+// RunnerID identifies the workspace's dev container runner: the UID, or the
+// ID for workspaces created before UIDs were unique.
+func (w *Workspace) RunnerID() string {
+	if encoding.IsLegacyUID(w.UID) {
+		return w.ID
+	}
+	return w.UID
 }
 
 func (w *Workspace) IsPlatform() bool {
