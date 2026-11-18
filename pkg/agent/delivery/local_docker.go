@@ -21,7 +21,10 @@ import (
 	"github.com/devsy-org/devsy/pkg/version"
 )
 
-var _ AgentDelivery = (*LocalDockerDelivery)(nil)
+var (
+	_ AgentDelivery         = (*LocalDockerDelivery)(nil)
+	_ ContentVolumeReleaser = (*LocalDockerDelivery)(nil)
+)
 
 const (
 	defaultDockerCmd = "docker"
@@ -57,7 +60,7 @@ func (d *LocalDockerDelivery) DeliverPreStart(ctx context.Context, opts PreStart
 	volumeName := volumePrefix + opts.WorkspaceID
 
 	labels := pkgconfig.DockerVolumeLabels(opts.WorkspaceID, pkgconfig.VolumeRoleAgent)
-	if err := d.createVolume(ctx, volumeName, labels); err != nil {
+	if err := d.CreateVolume(ctx, volumeName, labels); err != nil {
 		return fmt.Errorf("create agent volume: %w", err)
 	}
 
@@ -112,6 +115,13 @@ func (d *LocalDockerDelivery) Cleanup(ctx context.Context, workspaceID string) e
 	volumes = append(volumes, volumePrefix+workspaceID)
 	slices.Sort(volumes)
 	for _, name := range slices.Compact(volumes) {
+		// A content volume is shared by every --clone-into-volume workspace
+		// of the same repository, so it is never removed per workspace here;
+		// ReleaseContentWorktree releases one workspace's share of it.
+		if role, err := d.volumeRole(ctx, name); err == nil && role == pkgconfig.VolumeRoleContent {
+			log.Debugf("skipping shared content volume: %s", name)
+			continue
+		}
 		if err := d.removeVolume(ctx, name); err != nil {
 			errs = append(errs, err)
 			continue
@@ -119,6 +129,76 @@ func (d *LocalDockerDelivery) Cleanup(ctx context.Context, workspaceID string) e
 		log.Debugf("removed devsy-managed volume: %s", name)
 	}
 	return errors.Join(errs...)
+}
+
+// ReleaseContentWorktree releases one --clone-into-volume workspace's share
+// of a content volume: it removes the workspace's subpath (its worktree)
+// from the volume and then removes the volume itself only once no other
+// workspace's worktree remains in it. A missing volume is not an error.
+func (d *LocalDockerDelivery) ReleaseContentWorktree(
+	ctx context.Context,
+	volumeName, subpath string,
+) error {
+	if !isSafeContentSubpath(subpath) {
+		return fmt.Errorf("refusing to release unsafe content subpath %q", subpath)
+	}
+	// docker run -v would silently create a missing volume, so check first.
+	if err := d.cmd(ctx, "volume", "inspect", volumeName).Run(); err != nil {
+		log.Debugf("content volume %s not found, nothing to release", volumeName)
+		return nil
+	}
+
+	const mountPath = "/content"
+	script := `rm -rf "` + mountPath + `/$1" && ` +
+		`rmdir "` + mountPath + `/worktrees" 2>/dev/null; ` +
+		`if [ -z "$(ls -A ` + mountPath + `)" ]; then echo empty; else echo in-use; fi`
+	result, err := runCaptured(ctx, d.cmd(ctx,
+		cmdRun, flagRM,
+		"-v", volumeName+":"+mountPath,
+		d.helperImageName(),
+		"sh", "-c", script, "sh", subpath,
+	))
+	if err != nil {
+		return fmt.Errorf("remove worktree %s from %s: %s: %w",
+			subpath, volumeName, capturedOutput(result), err)
+	}
+	log.Debugf("removed worktree %s from content volume %s", subpath, volumeName)
+
+	if strings.TrimSpace(result.Stdout) != "empty" {
+		log.Debugf("content volume %s still used by other workspaces", volumeName)
+		return nil
+	}
+	if err := d.removeVolume(ctx, volumeName); err != nil {
+		return err
+	}
+	log.Debugf("removed devsy-managed volume: %s", volumeName)
+	return nil
+}
+
+// isSafeContentSubpath reports whether subpath is a relative path that
+// stays inside the content volume, so the rm -rf in ReleaseContentWorktree
+// can never reach outside the workspace's own worktree.
+func isSafeContentSubpath(subpath string) bool {
+	if subpath == "" || strings.HasPrefix(subpath, "/") {
+		return false
+	}
+	cleaned := path.Clean(subpath)
+	return cleaned == subpath && cleaned != "." && cleaned != ".." &&
+		!strings.HasPrefix(cleaned, "../")
+}
+
+// volumeRole returns the DockerVolumeRoleLabel value of a devsy-managed
+// volume.
+func (d *LocalDockerDelivery) volumeRole(ctx context.Context, name string) (string, error) {
+	out, err := d.cmd(ctx,
+		"volume", "inspect",
+		"--format", "{{index .Labels \""+pkgconfig.DockerVolumeRoleLabel+"\"}}",
+		name,
+	).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("inspect volume %s: %s: %w", name, string(out), err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func (d *LocalDockerDelivery) ensureCurrentBinary(
@@ -151,7 +231,14 @@ func (d *LocalDockerDelivery) ensureCurrentBinary(
 	return nil
 }
 
-func (d *LocalDockerDelivery) createVolume(
+// CreateVolume creates a named docker volume with the given labels. It is
+// idempotent: docker volume create against an already-existing volume name
+// succeeds and leaves the existing volume (and its labels) untouched, so
+// callers can call this unconditionally rather than checking existence
+// first. Exported so callers outside this package (e.g. the
+// clone-into-volume bootstrap-container flow in cmd/internal/agentworkspace)
+// can create/reuse a devsy-managed volume without duplicating this logic.
+func (d *LocalDockerDelivery) CreateVolume(
 	ctx context.Context,
 	name string,
 	labels map[string]string,

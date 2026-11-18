@@ -316,3 +316,12 @@ func TestTeardown_ImportedMarkerFailure_WarnsButSucceeds(t *testing.T) {
 		t.Fatal("expected a warning mentioning imported devcontainer cleanup")
 	}
 }
+
+func TestCleanupDeliveryVolume_PreserveContent_FallsBackToCleanup(t *testing.T) {
+	r := newTestRunner(&mockDriver{})
+
+	// The mock driver routes to a delivery that does not implement
+	// delivery.ContentVolumePreserver; cleanupDeliveryVolume must fall back
+	// to the ordinary full Cleanup rather than panicking.
+	_ = r.cleanupDeliveryVolume(context.Background(), true)
+}

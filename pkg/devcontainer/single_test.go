@@ -19,8 +19,6 @@ const (
 	nodeValue = "node"
 )
 
-const mountTypeVolume = "volume"
-
 type provisioningPreflightMockDriver struct {
 	*mockDriver
 	provisioningCalled bool
@@ -144,12 +142,23 @@ func TestWorkspaceMountDestination(t *testing.T) { //nolint:funlen // table-driv
 			want: "/workspaces/my-app",
 		},
 		{
-			name: "volume mount under /workspaces/ is ignored",
+			name: "volume mount under /workspaces/ is recognized (clone-into-volume)",
 			mounts: []config.ContainerMount{
 				{
 					Type:        mountTypeVolume,
-					Source:      "myvol",
+					Source:      "devsy-content-abc123",
 					Destination: "/workspaces/other",
+				},
+			},
+			want: "/workspaces/other",
+		},
+		{
+			name: "volume mount outside /workspaces/ is ignored",
+			mounts: []config.ContainerMount{
+				{
+					Type:        mountTypeVolume,
+					Source:      "devsy-agent-abc123",
+					Destination: "/opt/devsy",
 				},
 			},
 			want: "",

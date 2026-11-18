@@ -63,6 +63,70 @@ func TestValidateID_InvalidCharsCheckedBeforeLength(t *testing.T) {
 	assert.Contains(t, err.Error(), "lowercase letters")
 }
 
+func TestApplyCloneIntoVolume(t *testing.T) {
+	const testGitRepo = "https://github.com/devsy-org/devsy"
+
+	cases := []struct {
+		name         string
+		gitRepo      string
+		providerName string
+		wantErr      string
+	}{
+		{
+			name:         "git source with docker provider succeeds",
+			gitRepo:      testGitRepo,
+			providerName: "docker",
+		},
+		{
+			name:         "non-git source rejected",
+			gitRepo:      "",
+			providerName: "docker",
+			wantErr:      "git repository",
+		},
+		{
+			name:         "non-docker provider rejected",
+			gitRepo:      testGitRepo,
+			providerName: "kubernetes",
+			wantErr:      "docker provider",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ws := &providerpkg.Workspace{
+				Source: providerpkg.WorkspaceSource{GitRepository: tc.gitRepo},
+			}
+			p := &ProviderWithOptions{Config: &providerpkg.ProviderConfig{Name: tc.providerName}}
+
+			err := applyCloneIntoVolume(p, ws)
+
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				assert.False(t, ws.CloneIntoVolume)
+				return
+			}
+			require.NoError(t, err)
+			assert.True(t, ws.CloneIntoVolume)
+			assert.Equal(t, providerpkg.ContentVolumeName(tc.gitRepo), ws.ContentVolumeName)
+		})
+	}
+}
+
+func TestIgnoredCloneIntoVolume(t *testing.T) {
+	bindMounted := &providerpkg.Workspace{ID: "demo"}
+	volumeBacked := &providerpkg.Workspace{ID: "demo", CloneIntoVolume: true}
+
+	msg := ignoredCloneIntoVolume(ResolveParams{CloneIntoVolume: true}, bindMounted)
+	assert.Contains(t, msg, "ignoring --clone-into-volume: workspace demo already exists",
+		"an existing bind-mounted workspace must not silently ignore the flag")
+
+	assert.Empty(t, ignoredCloneIntoVolume(ResolveParams{CloneIntoVolume: true}, volumeBacked),
+		"repeating the flag on a volume-backed workspace is fine")
+	assert.Empty(t, ignoredCloneIntoVolume(ResolveParams{}, bindMounted))
+	assert.Empty(t, ignoredCloneIntoVolume(ResolveParams{}, volumeBacked))
+}
+
 func TestEnsureWorkspaceID(t *testing.T) {
 	cases := []struct {
 		name        string

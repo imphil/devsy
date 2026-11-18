@@ -1,6 +1,8 @@
 package provider
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/url"
 	"strings"
 	"time"
@@ -90,6 +92,24 @@ type Workspace struct {
 
 	// Path to an alternate file where Devsy entries are written (for read-only SSH configs)
 	SSHConfigIncludePath string `json:"sshConfigIncludePath,omitempty"`
+
+	// CloneIntoVolume opts into cloning the git source into a docker-native
+	// named volume (see ContentVolumeName) instead of a host bind mount, so
+	// the working tree never crosses the host<->VM filesystem translation
+	// boundary Docker Desktop/WSL2/Lima impose on bind mounts. Only valid for
+	// a git source on the docker provider. Decided at creation time and
+	// persisted: it determines how every subsequent container's workspace
+	// mount is constructed and cannot be flipped in place without a fresh
+	// clone.
+	CloneIntoVolume bool `json:"cloneIntoVolume,omitempty"`
+
+	// ContentVolumeName is the docker volume name backing CloneIntoVolume,
+	// computed once at creation time via ContentVolumeName(Source.GitRepository)
+	// and persisted so restarts and --recreate reuse the same volume instead
+	// of re-deriving it. Named by repository identity rather than workspace
+	// UID so a future workspace on the same repository can resolve to the
+	// same volume and attach via a git worktree instead of a full reclone.
+	ContentVolumeName string `json:"contentVolumeName,omitempty"`
 }
 
 type PlatformMetadata struct {
@@ -234,6 +254,23 @@ type AgentWorkspaceInfo struct {
 
 	// ContentFolder holds the folder where the content is stored
 	ContentFolder string `json:"contentFolder,omitempty"`
+
+	// ContentVolumeMounted signals that this particular "agent workspace up"
+	// invocation is running inside the disposable bootstrap container created
+	// for a Workspace.CloneIntoVolume workspace: ContentFolder is already a
+	// mount of Workspace.ContentVolumeName at ContentVolumeSubpath, rather
+	// than a plain host directory. It (a) suppresses re-entering the
+	// bootstrap-container hop, avoiding infinite recursion, and (b) switches
+	// the eventual devcontainer's workspace mount from a host bind mount to
+	// the same named volume. Set only on the nested workspace info built for
+	// the bootstrap container; never persisted as part of the workspace
+	// itself.
+	ContentVolumeMounted bool `json:"contentVolumeMounted,omitempty"`
+
+	// ContentVolumeSubpath is the path within Workspace.ContentVolumeName that
+	// ContentFolder is mounted at when ContentVolumeMounted is set, e.g.
+	// "worktrees/<workspace-uid>".
+	ContentVolumeSubpath string `json:"contentVolumeSubpath,omitempty"`
 
 	// Origin holds the folder where this config was loaded from
 	Origin string `json:"-"`
@@ -631,4 +668,24 @@ func (w *Workspace) PreferredSSHHostCommitted() string {
 	}
 
 	return current.PreferredSSHHost()
+}
+
+// ContentVolumeSubpath returns the subpath of a shared content volume that
+// holds the worktree of the workspace with the given runner ID.
+func ContentVolumeSubpath(runnerID string) string {
+	return "worktrees/" + runnerID
+}
+
+// ContentVolumeName derives a stable, docker-name-safe volume name from a git
+// repository URL, so that multiple workspaces backed by the same repository
+// resolve to the same volume name and share it, each keeping its worktree in
+// its own ContentVolumeSubpath. Applies
+// its own case-folding and ".git"-suffix stripping since git.NormalizeRepository
+// does not, so e.g. "Org/Repo" and "org/repo.git" resolve to the same name.
+// Known limitation: an SSH-form and HTTPS-form URL for the same repository are
+// not unified.
+func ContentVolumeName(gitRepository string) string {
+	key := strings.ToLower(strings.TrimSuffix(strings.TrimSuffix(gitRepository, "/"), ".git"))
+	digest := sha256.Sum256([]byte(key))
+	return "devsy-content-" + hex.EncodeToString(digest[:])[:20]
 }
