@@ -148,6 +148,30 @@ describe("workspace detail presentation editing", () => {
     ).toBe("api.devsy")
   })
 
+  it("shows where the source lives under technical details", () => {
+    workspaces.set([
+      {
+        id: "api",
+        uid: "u1",
+        context: "default",
+        status: "Stopped",
+        provider: { name: "docker" },
+        sourceLocation: {
+          kind: "volume",
+          volumeName: "devsy-content-0123",
+          path: "worktrees/u1",
+        },
+      },
+    ])
+    render(WorkspaceDetailPage, { params: { id: "api" } })
+    const row = document.querySelector(
+      '[data-slot="workspace-source-location"]',
+    )
+    expect(row?.textContent).toContain("Docker volume")
+    expect(row?.textContent).toContain("devsy-content-0123")
+    expect(row?.textContent).toContain("Folder in volume: worktrees/u1")
+  })
+
   it("does not persist anything while typing and cancels without saving", async () => {
     render(WorkspaceDetailPage, { params: { id: "api" } })
     await openEditor()
