@@ -24,6 +24,7 @@ import (
 	devsshagent "github.com/devsy-org/devsy/pkg/ssh/agent"
 	"github.com/devsy-org/devsy/pkg/transport"
 	"github.com/devsy-org/devsy/pkg/workspace"
+	"github.com/devsy-org/devsy/pkg/x11"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
@@ -67,6 +68,7 @@ type StartSSHSessionOptions struct {
 	User            string
 	Command         string
 	AgentForwarding bool
+	X11Forwarding   bool
 	SessionOptions  SSHSessionOptions
 	OpenTransport   func(context.Context) (transport.ManagedConn, error)
 	Exec            ExecFunc
@@ -76,6 +78,7 @@ type StartSSHSessionOptions struct {
 type RunSSHSessionOptions struct {
 	Command         string
 	AgentForwarding bool
+	X11Forwarding   bool
 	SessionOptions  SSHSessionOptions
 	Stderr          io.Writer
 }
@@ -235,6 +238,7 @@ func StartSSHSession(ctx context.Context, options StartSSHSessionOptions) error 
 			return RunSSHSession(ctx, sshClient, RunSSHSessionOptions{
 				Command:         options.Command,
 				AgentForwarding: options.AgentForwarding,
+				X11Forwarding:   options.X11Forwarding,
 				SessionOptions:  options.SessionOptions,
 				Stderr:          options.Stderr,
 			})
@@ -262,6 +266,7 @@ func RunSSHSession(ctx context.Context, sshClient *ssh.Client, options RunSSHSes
 	if err := configureAgentForwarding(sshClient, session, options.AgentForwarding); err != nil {
 		return err
 	}
+	configureX11Forwarding(sshClient, session, options.X11Forwarding)
 
 	restoreTerm, err := setupPTYIfNeeded(sessionCtx, sshClient, session, options)
 	if err != nil {
@@ -324,6 +329,24 @@ func configureAgentForwarding(
 	}
 
 	return nil
+}
+
+// configureX11Forwarding requests X11 forwarding to the local display.
+// Without a local display it does nothing, and a failure only loses the
+// display, never the session.
+func configureX11Forwarding(sshClient *ssh.Client, session *ssh.Session, enabled bool) {
+	if !enabled {
+		return
+	}
+	err := x11.RequestForwarding(sshClient, session, x11.ClientOptions{})
+	switch {
+	case err == nil:
+		log.Debugf("x11 forwarding enabled")
+	case errors.Is(err, x11.ErrNoDisplay):
+		log.Debugf("x11 forwarding skipped: %v", err)
+	default:
+		log.Warnf("x11 forwarding unavailable: %v", err)
+	}
 }
 
 func setupInteractivePTY(

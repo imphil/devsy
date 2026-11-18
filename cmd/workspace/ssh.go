@@ -50,6 +50,7 @@ type SSHCmd struct {
 	JumpContainer             bool
 	ReuseSSHAuthSock          string
 	AgentForwarding           bool
+	X11Forwarding             bool
 	GPGAgentForwarding        bool
 	GitSSHSignatureForwarding bool
 	GitSSHSigningKey          string
@@ -212,6 +213,9 @@ func (cmd *SSHCmd) registerAgentForwardingFlags(sshCmd *cobra.Command) {
 		sshCmd,
 		cliflags.Bool(&cmd.AgentForwarding, names.AgentForwarding, true,
 			"If true forward the local ssh keys to the remote machine"),
+		cliflags.Bool(&cmd.X11Forwarding, names.X11Forwarding, true,
+			"If true forward X11 to the local display, so GUI apps started in the workspace show locally "+
+				"(also controlled by the SSH_X11_FORWARDING context option)"),
 		cliflags.String(&cmd.ReuseSSHAuthSock, names.ReuseSSHAuthSock, "",
 			"If set, the SSH_AUTH_SOCK is expected to already be available in the workspace "+
 				"(under /tmp using the key provided) and the connection reuses this instead of creating a new one").
@@ -540,6 +544,8 @@ func (cmd *SSHCmd) runInteractiveTunnelSession(
 			params.devsyConfig.ContextOption(
 				config.ContextOptionSSHAgentForwarding,
 			) == config.BoolTrue,
+		X11Forwarding: cmd.X11Forwarding &&
+			params.devsyConfig.ContextOptionBool(config.ContextOptionSSHX11Forwarding),
 		SessionOptions: machine.SSHSessionOptions{
 			TermMode:        cmd.TermMode,
 			InstallTerminfo: cmd.InstallTerminfo,
