@@ -7,6 +7,7 @@ import type {
 import {
   buildDevcontainerArg,
   buildWorkspaceSource,
+  describeSourceLocation,
   describeWorkspaceSource,
 } from "./workspace-source.js"
 
@@ -313,4 +314,41 @@ describe("describeWorkspaceSource", () => {
       expect(describeWorkspaceSource(source)).toEqual({ label, value })
     },
   )
+})
+
+describe("describeSourceLocation", () => {
+  it("shows the volume name and the worktree inside it", () => {
+    expect(
+      describeSourceLocation({
+        kind: "volume",
+        volumeName: "devsy-content-0123",
+        path: "worktrees/default-ws-1",
+      }),
+    ).toEqual({
+      label: "Docker volume",
+      value: "devsy-content-0123",
+      detail: "Folder in volume: worktrees/default-ws-1",
+    })
+  })
+
+  it("shows the folder of a clone on this machine", () => {
+    expect(
+      describeSourceLocation({ kind: "hostFolder", path: "/home/me/.devsy/x" }),
+    ).toEqual({ label: "Folder on this machine", value: "/home/me/.devsy/x" })
+  })
+
+  it("marks a local folder source as used directly", () => {
+    expect(
+      describeSourceLocation({ kind: "localFolder", path: "/src/app" }),
+    ).toEqual({ label: "Your local folder (used directly)", value: "/src/app" })
+  })
+
+  it("has no path for a remote clone and falls back when unknown", () => {
+    expect(describeSourceLocation({ kind: "remote" })).toEqual({
+      label: "On the provider's machine",
+    })
+    expect(describeSourceLocation(undefined)).toEqual({
+      label: "Not available",
+    })
+  })
 })

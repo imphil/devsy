@@ -13,7 +13,6 @@ import (
 	"github.com/devsy-org/devsy/pkg/devcontainer/config"
 	"github.com/devsy-org/devsy/pkg/driver"
 	"github.com/devsy-org/devsy/pkg/driver/drivercreate"
-	"github.com/devsy-org/devsy/pkg/encoding"
 	"github.com/devsy-org/devsy/pkg/language"
 	"github.com/devsy-org/devsy/pkg/log"
 	"github.com/devsy-org/devsy/pkg/provider"
@@ -153,10 +152,7 @@ func NewRunner(
 }
 
 func GetRunnerIDFromWorkspace(workspace *provider.Workspace) string {
-	if encoding.IsLegacyUID(workspace.UID) {
-		return workspace.ID
-	}
-	return workspace.UID
+	return workspace.RunnerID()
 }
 
 func (r *runner) Up(

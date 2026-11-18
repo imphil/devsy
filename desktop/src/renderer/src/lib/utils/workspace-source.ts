@@ -1,4 +1,7 @@
-import type { WorkspaceSource } from "$lib/types/index.js"
+import type {
+  WorkspaceSource,
+  WorkspaceSourceLocation,
+} from "$lib/types/index.js"
 
 export type WorkspaceSourceType = "git" | "local" | "image"
 export type GitRefType = "branch" | "commit" | "pr"
@@ -147,4 +150,40 @@ export function describeWorkspaceSource(source?: WorkspaceSource): {
     return { label: "Existing container", value: source.container }
   if (source?.snapshot) return { label: "Snapshot", value: source.snapshot }
   return { label: "Source", value: "Not available" }
+}
+
+export interface SourceLocationDetails {
+  /** What kind of storage holds the source. */
+  label: string
+  /** Copyable value: a folder path or a volume name. */
+  value?: string
+  /** Extra line, e.g. the worktree path inside a volume. */
+  detail?: string
+}
+
+/** Describes where a workspace's source code lives, for display. */
+export function describeSourceLocation(
+  location?: WorkspaceSourceLocation,
+): SourceLocationDetails {
+  switch (location?.kind) {
+    case "volume":
+      return {
+        label: "Docker volume",
+        value: location.volumeName,
+        detail: location.path
+          ? `Folder in volume: ${location.path}`
+          : undefined,
+      }
+    case "hostFolder":
+      return { label: "Folder on this machine", value: location.path }
+    case "localFolder":
+      return {
+        label: "Your local folder (used directly)",
+        value: location.path,
+      }
+    case "remote":
+      return { label: "On the provider's machine" }
+    default:
+      return { label: "Not available" }
+  }
 }
