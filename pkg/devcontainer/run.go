@@ -40,6 +40,12 @@ type Runner interface {
 
 type DeleteOptions struct {
 	RemoveVolumes bool
+	// PreserveContentVolume skips removing a --clone-into-volume workspace's
+	// content volume during an otherwise-full delivery-volume cleanup. Set by
+	// deleteForRecreate: unlike a true workspace delete, a recreate only
+	// replaces the container and must not discard the volume, since it is the
+	// only copy of the cloned working tree.
+	PreserveContentVolume bool
 }
 
 // CommandParams groups the inputs for running a command inside the dev container.

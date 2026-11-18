@@ -54,6 +54,16 @@ type Cleaner interface {
 	Cleanup(ctx context.Context, workspaceID string) error
 }
 
+// ContentVolumeReleaser is implemented by deliveries that manage the shared
+// content volume of --clone-into-volume workspaces (see VolumeRoleContent).
+// Every workspace cloned from the same repository keeps its worktree in its
+// own subpath of one volume, so a workspace delete releases only that
+// subpath, and the volume goes away once no worktree is left. Cleaner never
+// removes a content volume.
+type ContentVolumeReleaser interface {
+	ReleaseContentWorktree(ctx context.Context, volumeName, subpath string) error
+}
+
 type AgentDelivery interface {
 	Cleaner
 	Phase() DeliveryPhase

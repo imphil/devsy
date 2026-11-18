@@ -300,6 +300,15 @@ func (cmd *UpCmd) registerWorkspaceRuntimeFlags(upCmd *cobra.Command) {
 			false,
 			"Clone the source inside the container instead of bind-mounting from the host (unset = auto-detect)",
 		),
+		flags.Bool(
+			&cmd.CloneIntoVolume,
+			names.CloneIntoVolume,
+			false,
+			"Clone the source into a docker-native volume instead of a host bind mount, avoiding "+
+				"the host<->VM filesystem translation slowdown on Windows/macOS Docker Desktop, WSL2, "+
+				"and Lima/Colima. Requires a git source and the docker provider. Decided once at "+
+				"workspace creation and cannot be changed later.",
+		),
 		flags.Bool(&cmd.Detach, names.Detach, false,
 			"Submit the workspace for provisioning and return immediately; "+
 				"poll progress with 'workspace task get <id>' or 'workspace task logs <id> -f'").

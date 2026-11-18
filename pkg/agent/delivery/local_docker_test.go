@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/devsy-org/devsy/pkg/devcontainer/config"
@@ -574,6 +575,126 @@ func TestLocalDockerDelivery_Cleanup_RemovesLegacyUnlabeledAgentVolume(t *testin
 	logged, err := os.ReadFile(logPath) //nolint:gosec
 	require.NoError(t, err)
 	assert.Equal(t, "volume rm -f devsy-agent-ws-legacy\n", string(logged))
+}
+
+// writeContentVolumeFakeDocker writes a fake docker CLI for the content
+// volume tests and returns its path and the log of every call it received.
+// `volume ls` lists an agent and a content volume, `volume inspect --format`
+// reports each one's role, plain `volume inspect` succeeds only when
+// volumeExists is set, and `run` prints runOutput (the helper's verdict on
+// whether the content volume is now empty).
+func writeContentVolumeFakeDocker(
+	t *testing.T, volumeExists bool, runOutput string,
+) (scriptPath, logPath string) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	logPath = filepath.Join(tmpDir, "calls.log")
+	inspectExit := "1"
+	if volumeExists {
+		inspectExit = "0"
+	}
+	scriptPath = filepath.Join(tmpDir, "fake-docker.sh")
+	script := "#!/bin/sh\n" +
+		"echo \"$@\" >> \"" + logPath + "\"\n" +
+		"if [ \"$1\" = \"volume\" ] && [ \"$2\" = \"ls\" ]; then\n" +
+		"  printf 'devsy-agent-ws1\\ndevsy-content-ws1\\n'; exit 0\n" +
+		"fi\n" +
+		"if [ \"$1\" = \"volume\" ] && [ \"$2\" = \"inspect\" ] && [ \"$3\" = \"--format\" ]; then\n" +
+		"  if [ \"$5\" = \"devsy-content-ws1\" ]; then echo content; else echo agent; fi\n" +
+		"  exit 0\n" +
+		"fi\n" +
+		"if [ \"$1\" = \"volume\" ] && [ \"$2\" = \"inspect\" ]; then exit " + inspectExit + "; fi\n" +
+		"if [ \"$1\" = \"run\" ]; then echo " + runOutput + "; exit 0; fi\n" +
+		"exit 0\n"
+	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o600))
+	// #nosec G302 -- test script must be executable
+	require.NoError(t, os.Chmod(scriptPath, 0o755))
+	return scriptPath, logPath
+}
+
+func readCalls(t *testing.T, logPath string) []string {
+	t.Helper()
+	logged, err := os.ReadFile(logPath) //nolint:gosec // test reads a temp file we control
+	if os.IsNotExist(err) {
+		return nil
+	}
+	require.NoError(t, err)
+	return strings.Split(strings.TrimSpace(string(logged)), "\n")
+}
+
+func callsWithPrefix(calls []string, prefix string) []string {
+	var out []string
+	for _, c := range calls {
+		if strings.HasPrefix(c, prefix) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func TestLocalDockerDelivery_Cleanup_SkipsSharedContentVolume(t *testing.T) {
+	scriptPath, logPath := writeContentVolumeFakeDocker(t, true, "empty")
+
+	d := &LocalDockerDelivery{DockerCommand: scriptPath}
+	require.NoError(t, d.Cleanup(context.Background(), "ws1"))
+
+	removed := strings.Join(callsWithPrefix(readCalls(t, logPath), "volume rm"), "\n")
+	assert.Contains(t, removed, "devsy-agent-ws1")
+	assert.NotContains(t, removed, "devsy-content-ws1")
+}
+
+func TestLocalDockerDelivery_ReleaseContentWorktree(t *testing.T) {
+	tests := []struct {
+		name         string
+		volumeExists bool
+		runOutput    string
+		wantRun      bool
+		wantRemoved  bool
+	}{
+		{name: "other worktrees remain", volumeExists: true, runOutput: "in-use", wantRun: true},
+		{
+			name: "last worktree removes volume", volumeExists: true, runOutput: "empty",
+			wantRun: true, wantRemoved: true,
+		},
+		{name: "missing volume is a no-op", runOutput: "empty"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scriptPath, logPath := writeContentVolumeFakeDocker(t, tt.volumeExists, tt.runOutput)
+
+			d := &LocalDockerDelivery{DockerCommand: scriptPath}
+			require.NoError(t, d.ReleaseContentWorktree(
+				context.Background(), "devsy-content-ws1", "worktrees/ws1",
+			))
+
+			calls := readCalls(t, logPath)
+			runs := callsWithPrefix(calls, "run ")
+			if tt.wantRun {
+				require.Len(t, runs, 1)
+				assert.Contains(t, runs[0], "devsy-content-ws1:/content")
+				assert.True(t, strings.HasSuffix(runs[0], " sh worktrees/ws1"), runs[0])
+			} else {
+				assert.Empty(t, runs, "must not run a helper that would create the volume")
+			}
+			removed := callsWithPrefix(calls, "volume rm")
+			if tt.wantRemoved {
+				assert.Equal(t, []string{"volume rm -f devsy-content-ws1"}, removed)
+			} else {
+				assert.Empty(t, removed)
+			}
+		})
+	}
+}
+
+func TestLocalDockerDelivery_ReleaseContentWorktree_RejectsUnsafeSubpath(t *testing.T) {
+	scriptPath, logPath := writeContentVolumeFakeDocker(t, true, "empty")
+	d := &LocalDockerDelivery{DockerCommand: scriptPath}
+
+	for _, subpath := range []string{"", ".", "..", "/", "/etc", "../x", "worktrees/../..", "a//b"} {
+		err := d.ReleaseContentWorktree(context.Background(), "devsy-content-ws1", subpath)
+		assert.Error(t, err, "subpath %q", subpath)
+	}
+	assert.Empty(t, readCalls(t, logPath), "no docker call for an unsafe subpath")
 }
 
 func TestLocalDockerDelivery_SeedExcludesBuildInternal(t *testing.T) {
