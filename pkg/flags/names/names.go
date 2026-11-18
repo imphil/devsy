@@ -85,6 +85,7 @@ const (
 	ExpectedDisplayName  = "expected-display-name"
 	ExpectedSSHHostAlias = "expected-ssh-host-alias"
 	AgentForwarding      = "agent-forwarding"
+	X11Forwarding        = "x11-forwarding"
 	ReuseSSHAuthSock     = "reuse-ssh-auth-sock"
 	Stdio                = "stdio"
 	StartServices        = "start-services"
