@@ -21,6 +21,7 @@ const (
 	ContextOptionDotfilesURL              = "DOTFILES_URL"
 	ContextOptionDotfilesScript           = "DOTFILES_SCRIPT"
 	ContextOptionSSHAgentForwarding       = "SSH_AGENT_FORWARDING"
+	ContextOptionSSHX11Forwarding         = "SSH_X11_FORWARDING"
 	ContextOptionSSHConfigPath            = "SSH_CONFIG_PATH"
 	ContextOptionSSHConfigIncludePath     = "SSH_CONFIG_INCLUDE_PATH"
 	ContextOptionAgentInjectTimeout       = "AGENT_INJECT_TIMEOUT"
@@ -98,6 +99,13 @@ var ContextOptions = []ContextOption{
 		Description: "Specifies if Devsy should do agent forwarding by default into the workspace",
 		Default:     BoolTrue,
 		Enum:        []string{BoolTrue, BoolFalse},
+	},
+	{
+		Name: ContextOptionSSHX11Forwarding,
+		Description: "Specifies if Devsy should forward X11 (trusted) by default into the workspace, " +
+			"so GUI apps started in it show on the local display",
+		Default: BoolTrue,
+		Enum:    []string{BoolTrue, BoolFalse},
 	},
 	{
 		Name:        ContextOptionTelemetry,
