@@ -17,6 +17,7 @@ import (
 	"github.com/devsy-org/devsy/pkg/config"
 	"github.com/devsy-org/devsy/pkg/encoding"
 	"github.com/devsy-org/devsy/pkg/file"
+	"github.com/devsy-org/devsy/pkg/flags/names"
 	"github.com/devsy-org/devsy/pkg/git"
 	"github.com/devsy-org/devsy/pkg/ide/ideparse"
 	"github.com/devsy-org/devsy/pkg/image"
@@ -62,6 +63,12 @@ type ResolveParams struct {
 	UID                  string
 	ChangeLastUsed       bool
 	Owner                platform.OwnerFilter
+	// CloneIntoVolume opts a newly-created workspace into cloning its git
+	// source into a docker-native volume instead of a host bind mount. Only
+	// applies to workspace creation (Workspace.CloneIntoVolume is immutable
+	// once set): Resolve ignores it, with a warning, for an existing
+	// workspace created without it.
+	CloneIntoVolume bool
 }
 
 // Resolve finds an existing workspace matching the params or creates a new one,
@@ -78,6 +85,9 @@ func Resolve(
 	resolved, err := resolveWorkspace(ctx, devsyConfig, params)
 	if err != nil {
 		return nil, err
+	}
+	if msg := ignoredCloneIntoVolume(params, resolved.workspace); msg != "" {
+		log.Warn(msg)
 	}
 
 	workspace, err := ideparse.RefreshIDEOptions(
@@ -317,6 +327,7 @@ func resolveWorkspace(
 		source:               params.Source,
 		isLocalPath:          isLocalPath,
 		uid:                  params.UID,
+		cloneIntoVolume:      params.CloneIntoVolume,
 	})
 	if err != nil {
 		_ = clientimplementation.DeleteWorkspaceFolder(
@@ -377,6 +388,7 @@ type createWorkspaceParams struct {
 	source               *providerpkg.WorkspaceSource
 	isLocalPath          bool
 	uid                  string
+	cloneIntoVolume      bool
 }
 
 // createWorkspace builds a new workspace config and provisions any backing
@@ -400,6 +412,12 @@ func createWorkspace(
 		sshConfigIncludePath: params.sshConfigIncludePath,
 		uid:                  params.uid,
 	})
+
+	if params.cloneIntoVolume {
+		if err := applyCloneIntoVolume(provider, workspace); err != nil {
+			return resolvedWorkspace{}, err
+		}
+	}
 
 	if err := assignDesiredMachine(provider, workspace, params.desiredMachine); err != nil {
 		return resolvedWorkspace{}, err
@@ -642,6 +660,51 @@ func resolveWorkspaceConfig(
 	workspace.Source, workspace.Picture = resolveWorkspaceSource(ctx, params)
 
 	return workspace
+}
+
+// applyCloneIntoVolume validates and persists a --clone-into-volume request
+// onto a newly-created workspace. It requires a git source and the docker
+// provider, matching cmd/workspace/up.checkExtraDevContainerProvider's style
+// of checking the literal provider name (podman is not extended to in this
+// pass). ContentVolumeName is computed once here, at creation time, and
+// persisted, so later commands (stop, delete, ...) that only have the saved
+// Workspace to go on never need to re-derive it.
+func applyCloneIntoVolume(provider *ProviderWithOptions, workspace *providerpkg.Workspace) error {
+	if workspace.Source.GitRepository == "" {
+		return fmt.Errorf(
+			"%s requires a git repository workspace source",
+			names.Flag(names.CloneIntoVolume),
+		)
+	}
+	if provider.Config.Name != "docker" {
+		return fmt.Errorf(
+			"%s is only supported with the docker provider, got %q",
+			names.Flag(names.CloneIntoVolume), provider.Config.Name,
+		)
+	}
+
+	workspace.CloneIntoVolume = true
+	workspace.ContentVolumeName = providerpkg.ContentVolumeName(workspace.Source.GitRepository)
+	return nil
+}
+
+// ignoredCloneIntoVolume returns a warning if --clone-into-volume was passed
+// for an existing workspace whose source lives in a host folder, or "". The
+// flag only takes effect when a workspace is created (see
+// applyCloneIntoVolume), and neither --recreate nor --reset moves an existing
+// workspace's source, so it is ignored like up's other creation-only flags.
+func ignoredCloneIntoVolume(params ResolveParams, workspace *providerpkg.Workspace) string {
+	if !params.CloneIntoVolume || workspace == nil || workspace.CloneIntoVolume {
+		return ""
+	}
+	return fmt.Sprintf(
+		"ignoring %s: workspace %s already exists with its source in a host folder, "+
+			"and %s and %s keep it there; delete the workspace and run up again to clone into a volume",
+		names.Flag(names.CloneIntoVolume),
+		workspace.ID,
+		names.Flag(names.Recreate),
+		names.Flag(names.Reset),
+	)
 }
 
 // resolveWorkspaceSource classifies the workspace source, probing git and image

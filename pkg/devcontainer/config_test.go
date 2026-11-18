@@ -82,6 +82,35 @@ func (s *SubstituteTestSuite) TestSubstitute_WithInitEnv() {
 	s.Equal("custom_value", ctx.Env["CUSTOM_VAR"])
 }
 
+func (s *SubstituteTestSuite) TestSubstitute_WorkspaceMountDefaultsToBind() {
+	rawConfig := &config.DevContainerConfig{
+		ImageContainer: config.ImageContainer{Image: "some-image"},
+	}
+
+	_, ctx, err := s.runner.substitute(provider2.CLIOptions{}, rawConfig)
+
+	s.NoError(err)
+	s.Contains(ctx.WorkspaceMount, "type=bind")
+	s.Contains(ctx.WorkspaceMount, "source="+testWorkspaceFolder)
+}
+
+func (s *SubstituteTestSuite) TestSubstitute_CloneIntoVolumeMountsNamedVolume() {
+	s.runner.workspaceConfig.ContentVolumeMounted = true
+	s.runner.workspaceConfig.ContentVolumeSubpath = "worktrees/abc123"
+	s.runner.workspaceConfig.Workspace.ContentVolumeName = "devsy-content-abc123"
+	rawConfig := &config.DevContainerConfig{
+		ImageContainer: config.ImageContainer{Image: "some-image"},
+	}
+
+	_, ctx, err := s.runner.substitute(provider2.CLIOptions{}, rawConfig)
+
+	s.NoError(err)
+	s.Contains(ctx.WorkspaceMount, "type=volume")
+	s.Contains(ctx.WorkspaceMount, "source=devsy-content-abc123")
+	s.Contains(ctx.WorkspaceMount, "volume-subpath=worktrees/abc123")
+	s.NotContains(ctx.WorkspaceMount, "type=bind")
+}
+
 func (s *SubstituteTestSuite) TestSubstitute_InitEnvOverridesSystemEnv() {
 	s.T().Setenv("TEST_VAR", "system_value")
 

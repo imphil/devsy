@@ -744,7 +744,11 @@ func (r *runner) deleteForRecreate(ctx context.Context) error {
 func (r *runner) recreateByMode(ctx context.Context) error {
 	switch driver.DriverRecreateMode(r.driver) {
 	case driver.RecreateDelete:
-		if err := r.Delete(ctx, DeleteOptions{}); err != nil {
+		// Unlike a true workspace delete, a recreate only replaces the
+		// container: it must not discard a --clone-into-volume workspace's
+		// content volume, since that volume is the only copy of the cloned
+		// working tree.
+		if err := r.Delete(ctx, DeleteOptions{PreserveContentVolume: true}); err != nil {
 			return fmt.Errorf("delete devcontainer: %w", err)
 		}
 		return nil
@@ -882,15 +886,19 @@ func (r *runner) findRunningContainerOrFail(
 
 const (
 	mountTypeBind    = "bind"
+	mountTypeVolume  = "volume"
 	workspacesPrefix = "/workspaces/"
 )
 
 // workspaceMountDestination returns the container-side destination of the
-// workspace bind mount, or "" if none is found. This is used to prefer the
-// actual container mount path over the recomputed one after a rename.
+// workspace mount, or "" if none is found. This is used to prefer the actual
+// container mount path over the recomputed one after a rename. Recognizes
+// both a host bind mount and a --clone-into-volume workspace's named volume
+// mount (see pkg/devcontainer/mount.go's getWorkspace).
 func workspaceMountDestination(containerDetails *config.ContainerDetails) string {
 	for _, mount := range containerDetails.Mounts {
-		if mount.Type == mountTypeBind && strings.HasPrefix(mount.Destination, workspacesPrefix) {
+		isWorkspaceMount := mount.Type == mountTypeBind || mount.Type == mountTypeVolume
+		if isWorkspaceMount && strings.HasPrefix(mount.Destination, workspacesPrefix) {
 			return mount.Destination
 		}
 	}

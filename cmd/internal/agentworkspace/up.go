@@ -225,6 +225,16 @@ func (cmd *UpCmd) devsyUp(
 	workspaceInfo *provider.AgentWorkspaceInfo,
 	tunnelClient tunnel.TunnelClient,
 ) (*config2.Result, error) {
+	// A --clone-into-volume workspace that hasn't been routed through a
+	// bootstrap container yet (ContentVolumeMounted) delegates cloning,
+	// devcontainer.json discovery, and building the real devcontainer to a
+	// nested "internal agent workspace up" running inside one instead of
+	// doing it itself directly against a host content folder. See
+	// runInBootstrapContainer.
+	if workspaceInfo.Workspace.CloneIntoVolume && !workspaceInfo.ContentVolumeMounted {
+		return cmd.runInBootstrapContainer(ctx, workspaceInfo, tunnelClient)
+	}
+
 	secretResponse, err := tunnelClient.Secrets(ctx, &tunnel.Empty{})
 	if err != nil {
 		return nil, fmt.Errorf("fetch workspace secrets: %w", err)
@@ -307,7 +317,9 @@ func initContentFolder(
 	ctx context.Context,
 	workspaceInfo *provider.AgentWorkspaceInfo,
 ) (contentFolderState, error) {
-	exists, err := contentFolderExists(workspaceInfo.ContentFolder)
+	exists, err := contentFolderExists(
+		workspaceInfo.ContentFolder, workspaceInfo.ContentVolumeMounted,
+	)
 	state := contentFolderState{existed: exists, skipSource: exists}
 	if err != nil {
 		return state, err
@@ -347,9 +359,18 @@ func (e *existingContentPreparationError) Error() string { return e.cause.Error(
 
 func (e *existingContentPreparationError) Unwrap() error { return e.cause }
 
-func contentFolderExists(path string) (bool, error) {
-	_, err := os.Stat(path)
+// contentFolderExists reports whether path already holds workspace content.
+// For a --clone-into-volume workspace (volumeMounted), ContentFolder sits on a
+// docker volume mount, and docker always creates that mount point directory
+// even for a brand new, empty volume, so an empty directory there counts as
+// not existing; otherwise a plain os.Stat would treat every first clone as
+// already done.
+func contentFolderExists(path string, volumeMounted bool) (bool, error) {
+	entries, err := os.ReadDir(path)
 	if err == nil {
+		if volumeMounted && len(entries) == 0 {
+			return false, nil
+		}
 		log.Debugf("workspace folder already exists: path=%s", path)
 		return true, nil
 	}
@@ -713,6 +734,15 @@ type prepareWorkspaceParams struct {
 // prepareWorkspace initializes the workspace content folder and downloads/prepares the workspace source.
 // Note: This function modifies params.workspaceInfo.ContentFolder when platform is enabled with a local folder.
 func prepareWorkspace(ctx context.Context, params prepareWorkspaceParams) error {
+	// A --clone-into-volume workspace has no host content folder at all: the
+	// outer invocation delegates straight to runInBootstrapContainer (see
+	// devsyUp), and the nested invocation running inside the bootstrap
+	// container (ContentVolumeMounted) prepares its content normally below,
+	// just against a volume-backed subpath instead of a host directory.
+	if params.workspaceInfo.Workspace.CloneIntoVolume && !params.workspaceInfo.ContentVolumeMounted {
+		return nil
+	}
+
 	useAgentContentDir(params.workspaceInfo)
 
 	folder, err := initContentFolder(ctx, params.workspaceInfo)

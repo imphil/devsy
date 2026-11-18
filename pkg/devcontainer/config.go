@@ -642,6 +642,7 @@ func (r *runner) buildSubstitutionContext(
 		r.localWorkspaceFolder,
 		r.workspaceConfig.Workspace.ID,
 		rawParsedConfig,
+		r.contentVolumeMount(),
 	)
 
 	env := config.ListToObject(os.Environ())

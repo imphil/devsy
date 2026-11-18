@@ -14,6 +14,7 @@ func FlagFalse(name string) string { return FlagValue(name, "false") }
 const (
 	BuildSecret               = "build-secret"
 	CacheFrom                 = "cache-from"
+	CloneIntoVolume           = "clone-into-volume"
 	ContainerDataFolder       = "container-data-folder"
 	ContainerStatus           = "container-status"
 	ContainerUser             = "container-user"
