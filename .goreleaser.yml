@@ -12,17 +12,17 @@ builds:
     overrides:
       - goos: linux
         goarch: amd64
-        ldflags: -s -w -extldflags '-static' -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
+        ldflags: -s -w -extldflags '-static' -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/config.releaseRepo={{ envOrDefault "DEVSY_RELEASE_REPO" "devsy-org/devsy" }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
         tags:
           - netgo
           - osusergo
       - goos: linux
         goarch: arm64
-        ldflags: -s -w -extldflags '-static' -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
+        ldflags: -s -w -extldflags '-static' -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/config.releaseRepo={{ envOrDefault "DEVSY_RELEASE_REPO" "devsy-org/devsy" }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
         tags:
           - netgo
           - osusergo
-    ldflags: -s -w -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
+    ldflags: -s -w -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/config.releaseRepo={{ envOrDefault "DEVSY_RELEASE_REPO" "devsy-org/devsy" }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
     env:
       - CGO_ENABLED=0
 
@@ -30,7 +30,7 @@ builds:
     goos: [linux]
     goarch: [amd64, arm64]
     binary: devsy-{{ .Os }}-{{ .Arch }}
-    ldflags: -s -w -extldflags '-static' -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
+    ldflags: -s -w -extldflags '-static' -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/config.releaseRepo={{ envOrDefault "DEVSY_RELEASE_REPO" "devsy-org/devsy" }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
     env:
       - CGO_ENABLED=0
     tags:
@@ -41,7 +41,7 @@ builds:
     goos: [darwin]
     goarch: [amd64, arm64]
     binary: devsy-{{ .Os }}-{{ .Arch }}
-    ldflags: -s -w -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
+    ldflags: -s -w -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/config.releaseRepo={{ envOrDefault "DEVSY_RELEASE_REPO" "devsy-org/devsy" }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
     env:
       - CGO_ENABLED=0
 
@@ -49,7 +49,7 @@ builds:
     goos: [windows]
     goarch: [amd64, arm64]
     binary: devsy-{{ .Os }}-{{ .Arch }}
-    ldflags: -s -w -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
+    ldflags: -s -w -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/config.releaseRepo={{ envOrDefault "DEVSY_RELEASE_REPO" "devsy-org/devsy" }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
     env:
       - CGO_ENABLED=0
 
@@ -57,7 +57,7 @@ builds:
     goos: [linux, darwin]
     goarch: [amd64, arm64]
     binary: devsy-{{ .Os }}-{{ .Arch }}
-    ldflags: -s -w -extldflags '-static' -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
+    ldflags: -s -w -extldflags '-static' -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/config.releaseRepo={{ envOrDefault "DEVSY_RELEASE_REPO" "devsy-org/devsy" }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
     env:
       - CGO_ENABLED=0
     tags:
@@ -68,7 +68,7 @@ builds:
     goos: [linux]
     goarch: [amd64]
     binary: devsy-{{ .Os }}-{{ .Arch }}-pro
-    ldflags: -s -w -extldflags '-static' -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
+    ldflags: -s -w -extldflags '-static' -X main.build={{ .Env.DEVSY_CLI_VERSION }} -X main.commit={{ .Commit }} -X main.date={{ .Date }} -X github.com/devsy-org/devsy/pkg/version.version={{ .Env.DEVSY_CLI_VERSION }} -X github.com/devsy-org/devsy/pkg/config.releaseRepo={{ envOrDefault "DEVSY_RELEASE_REPO" "devsy-org/devsy" }} -X github.com/devsy-org/devsy/pkg/telemetry/analytics.posthogAPIKey={{ envOrDefault "DEVSY_POSTHOG_API_KEY" "" }}
     env:
       - CGO_ENABLED=0
     tags:
