@@ -844,8 +844,8 @@ func TestResolveAgentDownloadURL(t *testing.T) {
 		exampleAgent      = "https://example.com/agent/"
 		exampleAgentTrail = "https://example.com/agent///"
 		exampleAgentPlain = "https://example.com/agent"
-		defaultURL        = config.AgentLatestDownloadURL
 	)
+	defaultURL := config.AgentLatestDownloadURL()
 
 	cases := []struct {
 		name       string
