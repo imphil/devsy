@@ -896,3 +896,16 @@ func TestWritersWaitOnResolvedPathLock(t *testing.T) {
 		})
 	}
 }
+
+// open-remote-ssh (VSCodium, IBM Bob) drops backslashes when it parses the
+// ProxyCommand, so a Windows --home must use forward slashes like the binary.
+func TestDevsyHomeOptionForOS(t *testing.T) {
+	assert.Equal(t,
+		`--home "C:/Users/Test User/.silicon-harbor"`,
+		devsyHomeOption(`C:\Users\Test User\.silicon-harbor`, windowsGOOS),
+	)
+	assert.Equal(t,
+		`--home "/home/test/.silicon-harbor"`,
+		devsyHomeOption(`/home/test/.silicon-harbor`, "linux"),
+	)
+}

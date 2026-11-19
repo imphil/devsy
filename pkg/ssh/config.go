@@ -177,12 +177,18 @@ func newProxyCommandBuilder(execPath, context, user, workspace string) *proxyCom
 
 func (b *proxyCommandBuilder) withDevsyHome(home string) *proxyCommandBuilder {
 	if home != "" {
-		b.options = append(
-			b.options,
-			fmt.Sprintf("%s \"%s\"", names.Flag(names.Home), home),
-		)
+		b.options = append(b.options, devsyHomeOption(home, runtime.GOOS))
 	}
 	return b
+}
+
+// devsyHomeOption is the --home argument of the ProxyCommand. On Windows the
+// path gets forward slashes like the executable (normalizeSSHExecPath): SSH
+// config parsers such as the one in open-remote-ssh (VSCodium, IBM Bob) treat
+// a backslash as an escape and drop it, turning C:\Users\me\.devsy into
+// C:Usersme.devsy, so the ProxyCommand fails with a nonexistent home.
+func devsyHomeOption(home, goos string) string {
+	return fmt.Sprintf("%s \"%s\"", names.Flag(names.Home), normalizeSSHExecPathForOS(home, goos))
 }
 
 func (b *proxyCommandBuilder) withWorkdir(workdir string) *proxyCommandBuilder {
