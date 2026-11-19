@@ -224,7 +224,10 @@ mise run cli:test:e2e:act:focus "test-pattern"
 ### Releasing from a fork
 
 The Release workflow (`.github/workflows/release.yml`) also runs in a fork when
-you publish a GitHub release there; use a semver tag such as `v0.1.0`.
+you publish a GitHub release there. Use a semver tag that can't clash with
+upstream: the upstream version the fork is based on plus a numbered suffix,
+such as `v1.27.1-fork.1`. Keep the dot before the number: semver compares
+`fork.10` and `fork.9` as numbers, but `fork10` and `fork9` as text.
 
 - The CLI downloads its agent and self-updates from the releases of the
   repository that built it: the workflow sets `DEVSY_RELEASE_REPO` to
@@ -233,7 +236,9 @@ you publish a GitHub release there; use a semver tag such as `v0.1.0`.
   `DEVSY_DESKTOP_UPDATE_URL` is set. Set it to
   `https://github.com/<owner>/devsy/releases/latest/download`; the workflow then
   attaches the update manifests to each release instead of uploading them to
-  `dl.devsy.sh`.
+  `dl.devsy.sh`, and names them `latest*.yml` even when the version has a
+  suffix. Publish fork releases as normal releases, not prereleases: the
+  update URL only finds the newest normal release.
 - Jobs that need upstream secrets don't work in a fork: macOS signing and
   notarization (`DEVSY_APPLE_*`) and the Homebrew tap (`DEVSY_GITHUB_APP_*`,
   skipped for prereleases).
