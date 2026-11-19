@@ -33,13 +33,42 @@ const (
 
 	// WebsiteAssetsURL is the base URL for icon/image assets.
 	WebsiteAssetsURL = DownloadBaseURL + "/assets"
-
-	// AgentDownloadBaseURL is the prefix under which versioned agent binaries are published.
-	AgentDownloadBaseURL = GitHubReleasesURL + "/download/"
-
-	// AgentLatestDownloadURL points at the floating "latest" agent release.
-	AgentLatestDownloadURL = GitHubReleasesURL + "/latest/download"
 )
+
+// releaseRepo is the GitHub repository (owner/name) whose releases publish
+// this build: the agent binaries and the CLI that self-update installs. It
+// defaults to RepoSlug; builds from a fork set it with
+//
+//	-ldflags "-X github.com/devsy-org/devsy/pkg/config.releaseRepo=<owner>/<name>"
+//
+// so that they install their own agent and updates instead of upstream's.
+var releaseRepo = RepoSlug
+
+// ReleaseRepo returns the GitHub repository (owner/name) that publishes this
+// build's releases. See releaseRepo.
+func ReleaseRepo() string {
+	if releaseRepo == "" {
+		return RepoSlug
+	}
+	return releaseRepo
+}
+
+// ReleasesURL returns the GitHub releases page of ReleaseRepo.
+func ReleasesURL() string {
+	return "https://github.com/" + ReleaseRepo() + "/releases"
+}
+
+// AgentDownloadBaseURL returns the prefix under which versioned agent
+// binaries are published.
+func AgentDownloadBaseURL() string {
+	return ReleasesURL() + "/download/"
+}
+
+// AgentLatestDownloadURL returns the URL of the floating "latest" agent
+// release.
+func AgentLatestDownloadURL() string {
+	return ReleasesURL() + "/latest/download"
+}
 
 // DefaultAgentDownloadURL returns the URL the host should download the agent
 // binary from. Honors the DEVSY_AGENT_URL override; otherwise uses the
@@ -49,7 +78,7 @@ func DefaultAgentDownloadURL() string {
 		return strings.TrimRight(override, "/")
 	}
 	if version.GetVersion() == version.DevVersion {
-		return AgentLatestDownloadURL
+		return AgentLatestDownloadURL()
 	}
-	return AgentDownloadBaseURL + version.GetVersion()
+	return AgentDownloadBaseURL() + version.GetVersion()
 }
