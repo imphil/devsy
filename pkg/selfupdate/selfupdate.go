@@ -84,7 +84,7 @@ func detectRelease(
 		return nil, nil, fmt.Errorf("initialize updater: %w", err)
 	}
 
-	repo := selfupdate.ParseSlug(config.RepoSlug)
+	repo := selfupdate.ParseSlug(config.ReleaseRepo())
 
 	if opts.Version != "" {
 		release, err := detectSpecificVersion(ctx, updater, repo, opts.Version)
