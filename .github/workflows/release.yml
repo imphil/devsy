@@ -10,8 +10,29 @@ on:
         type: string
 
 jobs:
+  # The CLI jobs upload their binaries to the release in parallel; make sure
+  # it exists first, so a workflow_dispatch run doesn't create one per job.
+  ensure-release:
+    name: Ensure the release exists
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: create the draft release if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1 ||
+            gh release create "$TAG" --repo "$REPO" --draft --verify-tag \
+              --title "$TAG" --generate-notes
+
   build-cli:
     name: Build CLI Binary on ${{ matrix.runner }}
+    needs: ensure-release
+    permissions:
+      contents: write
     strategy:
       matrix:
         include:
@@ -53,6 +74,17 @@ jobs:
         with:
           name: devsy-${{ steps.os.outputs.runner_os }}
           path: dist/devsy-${{ steps.os.outputs.runner_os }}_*/devsy-${{ steps.os.outputs.runner_os }}-*
+
+      # Published right away: consumers of the CLI (and its agent download)
+      # don't have to wait for the desktop builds.
+      - name: upload cli assets
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          draft: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/devsy-${{ steps.os.outputs.runner_os }}_*/devsy-${{ steps.os.outputs.runner_os }}-*
 
   build-desktop:
     name: Build Desktop App (${{ matrix.name }})
@@ -346,14 +378,16 @@ jobs:
             desktop/release/beta*.yml
           if-no-files-found: ignore
 
-      - name: upload cli assets
+      # The CLI binaries in dist/ were uploaded by the build-cli jobs already.
+      - name: upload pro provider
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         if: matrix.name == 'linux-x64'
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           draft: true
+          fail_on_unmatched_files: true
           files: |
-            ./dist/*
+            ./dist/provider.yaml
 
       - name: upload desktop linux artifact for flatpak
         if: matrix.name == 'linux-x64'
