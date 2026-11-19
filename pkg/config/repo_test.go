@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -37,6 +38,27 @@ func (s *RepoTestSuite) TestDefaultAgentDownloadURL_SingleTrailingSlash() {
 func (s *RepoTestSuite) TestDefaultAgentDownloadURL_MultipleTrailingSlashes() {
 	_ = os.Setenv(EnvAgentURL, "https://example.com/releases/latest/download///")
 	s.Equal("https://example.com/releases/latest/download", DefaultAgentDownloadURL())
+}
+
+func (s *RepoTestSuite) TestReleaseRepo_DefaultsToUpstream() {
+	s.Equal(RepoSlug, ReleaseRepo())
+	s.Equal(GitHubReleasesURL, ReleasesURL())
+}
+
+func (s *RepoTestSuite) TestReleaseRepo_Override() {
+	s.T().Cleanup(func() { releaseRepo = RepoSlug })
+	_ = os.Unsetenv(EnvAgentURL)
+
+	releaseRepo = "someone/devsy"
+	s.Equal("someone/devsy", ReleaseRepo())
+	s.Equal("https://github.com/someone/devsy/releases/download/", AgentDownloadBaseURL())
+	s.Equal("https://github.com/someone/devsy/releases/latest/download", AgentLatestDownloadURL())
+	s.True(
+		strings.HasPrefix(DefaultAgentDownloadURL(), "https://github.com/someone/devsy/releases/"),
+	)
+
+	releaseRepo = ""
+	s.Equal(RepoSlug, ReleaseRepo(), "an empty build-time value keeps upstream")
 }
 
 func TestRepoSuite(t *testing.T) {
