@@ -46,6 +46,7 @@ jobs:
           args: build --id devsy-${{ steps.os.outputs.runner_os }} --snapshot
         env:
           DEVSY_CLI_VERSION: ${{ inputs.tag || github.ref_name }}
+          DEVSY_RELEASE_REPO: ${{ github.repository }}
           DEVSY_POSTHOG_API_KEY: ${{ secrets.DEVSY_POSTHOG_API_KEY }}
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -179,6 +180,11 @@ jobs:
         run: npx electron-vite build
         env:
           DEVSY_POSTHOG_API_KEY: ${{ secrets.DEVSY_POSTHOG_API_KEY }}
+          # Empty keeps the feed from electron-builder.yml (dl.devsy.sh). A
+          # fork sets this repository variable, e.g. to
+          # https://github.com/<owner>/devsy/releases/latest/download, so its
+          # app updates from its own releases (see deploy-update-metadata).
+          DEVSY_DESKTOP_UPDATE_URL: ${{ vars.DEVSY_DESKTOP_UPDATE_URL }}
 
       - name: package and publish with electron-builder (macOS, signed)
         if: runner.os == 'macOS'
@@ -338,7 +344,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: read
+      # write: attach the manifests to the release when the update feed is GitHub.
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -373,6 +380,7 @@ jobs:
           ls -la upload/
 
       - name: upload manifests to R2 (dl.devsy.sh)
+        if: vars.DEVSY_DESKTOP_UPDATE_URL == ''
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.DEVSY_R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.DEVSY_R2_SECRET_ACCESS_KEY }}
@@ -391,6 +399,17 @@ jobs:
               --cache-control "public, max-age=0, must-revalidate"
             echo "uploaded desktop/${name}"
           done
+
+      # A fork without dl.devsy.sh serves its update feed from its releases:
+      # DEVSY_DESKTOP_UPDATE_URL=https://github.com/<owner>/devsy/releases/latest/download
+      # resolves latest*.yml from the newest stable release.
+      - name: attach manifests to the GitHub release
+        if: vars.DEVSY_DESKTOP_UPDATE_URL != ''
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          draft: true
+          files: upload/*.yml
 
   build-flatpak:
     name: Build Flatpak
