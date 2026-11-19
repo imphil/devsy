@@ -12,7 +12,7 @@ import (
 )
 
 func GetSocketPath() string {
-	return fmt.Sprintf("/tmp/%s", socketSuffix)
+	return fmt.Sprintf("/tmp/%s", socketName())
 }
 
 func Dial() (net.Conn, error) {
