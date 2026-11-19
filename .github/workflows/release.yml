@@ -189,8 +189,9 @@ jobs:
       - name: package and publish with electron-builder (macOS, signed)
         if: runner.os == 'macOS'
         working-directory: desktop
-        run: npx electron-builder ${{ matrix.builder-args }} --publish always --config electron-builder.yml
+        run: npx electron-builder ${{ matrix.builder-args }} --publish always --config electron-builder.yml $DETECT_UPDATE_CHANNEL
         env:
+          DETECT_UPDATE_CHANNEL: ${{ vars.DEVSY_DESKTOP_UPDATE_URL && '-c.detectUpdateChannel=false' || '' }}
           GH_TOKEN: ${{ github.token }}
           CSC_LINK: ${{ secrets.DEVSY_APPLE_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.DEVSY_APPLE_CSC_PASSWORD }}
@@ -198,11 +199,16 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.DEVSY_APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.DEVSY_APPLE_TEAM_ID }}
 
+      # A fork's versions carry a suffix (v1.27.1-phw.1). electron-builder
+      # would derive the update channel from it and write phw*.yml; the app
+      # and deploy-update-metadata only use latest*.yml and beta*.yml.
       - name: package and publish with electron-builder (non-macOS)
         if: runner.os != 'macOS'
         working-directory: desktop
-        run: npx electron-builder ${{ matrix.builder-args }} --publish always --config electron-builder.yml
+        shell: bash
+        run: npx electron-builder ${{ matrix.builder-args }} --publish always --config electron-builder.yml $DETECT_UPDATE_CHANNEL
         env:
+          DETECT_UPDATE_CHANNEL: ${{ vars.DEVSY_DESKTOP_UPDATE_URL && '-c.detectUpdateChannel=false' || '' }}
           GH_TOKEN: ${{ github.token }}
 
       # macOS-only because .app is a directory bundle the CLI can read
