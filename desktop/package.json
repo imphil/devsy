@@ -22,7 +22,7 @@
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint:check": "biome check .",
-    "postinstall": "electron-rebuild -f -w node-pty"
+    "postinstall": "install-electron && electron-rebuild -f -w node-pty"
   },
   "dependencies": {
     "chokidar": "^5.0.0",
