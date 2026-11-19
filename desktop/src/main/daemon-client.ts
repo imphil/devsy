@@ -1,13 +1,30 @@
+import { createHash } from "node:crypto"
 import http from "node:http"
+import { resolve } from "node:path"
 
 const SOCKET_SUFFIX = "devsy-local.sock"
+const SOCKET_HASH_LEN = 12
 const REQUEST_TIMEOUT = 3000
+
+/**
+ * Mirrors socketName() in pkg/daemon/local/socket_name.go: the default home
+ * keeps the historical name, a DEVSY_HOME override gets its own daemon keyed
+ * by sha256 over the absolute home path.
+ */
+export function daemonSocketName(home = process.env.DEVSY_HOME): string {
+  if (!home) return SOCKET_SUFFIX
+  const hash = createHash("sha256")
+    .update(resolve(home))
+    .digest("hex")
+    .slice(0, SOCKET_HASH_LEN)
+  return `devsy-local-${hash}.sock`
+}
 
 function getDefaultSocketPath(): string {
   if (process.platform === "win32") {
-    return `\\\\.\\pipe\\${SOCKET_SUFFIX}`
+    return `\\\\.\\pipe\\${daemonSocketName()}`
   }
-  return `/tmp/${SOCKET_SUFFIX}`
+  return `/tmp/${daemonSocketName()}`
 }
 
 export class DaemonClient {
