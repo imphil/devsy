@@ -67,8 +67,12 @@ The build writes the `devsy` binary to the current directory.
 Using mise (recommended):
 
 ```bash
-# Setup Electron environment (first time only)
+# On Ubuntu/Debian: Setup Electron environment (first time only)
 mise run desktop:setup
+
+# On other distributions: install dependencies listed in tasks."desktop:deps" of
+# mise.toml manually and then complete the setup
+mise run --skip-deps desktop:setup
 
 # Run in development mode
 mise run desktop:dev
