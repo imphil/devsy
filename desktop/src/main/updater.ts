@@ -7,6 +7,14 @@ import { trackEvent } from "./analytics.js"
 import { clearAppQuitting, markAppQuitting } from "./app-lifecycle.js"
 import { mainLog } from "./logging.js"
 
+declare const __DEVSY_UPDATE_URL__: string | undefined
+// Build-time override of the update feed (DEVSY_DESKTOP_UPDATE_URL), for
+// builds from a fork. Empty keeps the feed electron-builder wrote into
+// app-update.yml. The `typeof` guard keeps the module loadable under vitest,
+// which doesn't apply Vite's `define` replacement.
+const DEVSY_UPDATE_URL =
+  typeof __DEVSY_UPDATE_URL__ === "string" ? __DEVSY_UPDATE_URL__ : ""
+
 export type ReleaseChannel = "stable" | "beta"
 
 export type UpdateStateValue =
@@ -64,6 +72,20 @@ export function configureUpdaterChannel(
   autoUpdater.allowPrerelease = channel === "beta"
   autoUpdater.channel = channel === "beta" ? "beta" : "latest"
   autoUpdater.allowDowngrade = false
+}
+
+/**
+ * Points the updater at a generic feed under url (where latest*.yml live), or
+ * leaves the packaged app-update.yml feed in place when url is empty.
+ */
+export function configureUpdateFeed(
+  autoUpdater: AppUpdater,
+  url: string,
+): void {
+  const feed = url.trim()
+  if (!feed) return
+  autoUpdater.setFeedURL({ provider: "generic", url: feed })
+  mainLog.info(`[updater] using update feed ${feed}`)
 }
 
 export type UpdateDecisionResult =
@@ -342,6 +364,7 @@ export async function initAutoUpdater(
 
   autoUpdater.autoDownload = autoDownloadEnabled
   autoUpdater.autoInstallOnAppQuit = true
+  configureUpdateFeed(autoUpdater, DEVSY_UPDATE_URL)
   configureUpdaterChannel(autoUpdater, currentChannel)
 
   autoUpdater.on("checking-for-update", () => {
