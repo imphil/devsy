@@ -221,6 +221,23 @@ mise run desktop:act:build:flatpak
 mise run cli:test:e2e:act:focus "test-pattern"
 ```
 
+### Releasing from a fork
+
+The Release workflow (`.github/workflows/release.yml`) also runs in a fork when
+you publish a GitHub release there; use a semver tag such as `v0.1.0`.
+
+- The CLI downloads its agent and self-updates from the releases of the
+  repository that built it: the workflow sets `DEVSY_RELEASE_REPO` to
+  `${{ github.repository }}`, which goreleaser passes to `pkg/config.releaseRepo`.
+- The desktop app updates from `dl.devsy.sh` unless the repository variable
+  `DEVSY_DESKTOP_UPDATE_URL` is set. Set it to
+  `https://github.com/<owner>/devsy/releases/latest/download`; the workflow then
+  attaches the update manifests to each release instead of uploading them to
+  `dl.devsy.sh`.
+- Jobs that need upstream secrets don't work in a fork: macOS signing and
+  notarization (`DEVSY_APPLE_*`) and the Homebrew tap (`DEVSY_GITHUB_APP_*`,
+  skipped for prereleases).
+
 ## Developing providers
 
 See [the docs](https://devsy.sh/docs/developing-providers/quickstart) to learn how to build a provider.

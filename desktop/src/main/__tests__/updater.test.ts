@@ -81,6 +81,24 @@ describe("updater", () => {
     )
   })
 
+  it("configures a generic feed only when an update URL is set", async () => {
+    const { configureUpdateFeed } = await import("../updater.js")
+    const setFeedURL = vi.fn()
+    const updater = { setFeedURL } as never
+
+    configureUpdateFeed(updater, "  ")
+    expect(setFeedURL).not.toHaveBeenCalled()
+
+    configureUpdateFeed(
+      updater,
+      "https://github.com/someone/devsy/releases/latest/download",
+    )
+    expect(setFeedURL).toHaveBeenCalledWith({
+      provider: "generic",
+      url: "https://github.com/someone/devsy/releases/latest/download",
+    })
+  })
+
   it("emits downloading state with progress info", async () => {
     const { initAutoUpdater } = await import("../updater.js")
     const send = vi.fn()
