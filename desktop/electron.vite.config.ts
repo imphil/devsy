@@ -4,16 +4,21 @@ import tailwindcss from "@tailwindcss/vite"
 import { defineConfig, externalizeDepsPlugin } from "electron-vite"
 
 // Empty in local builds, which makes the analytics module no-op.
-const posthogApiKeyDefine = {
+// DEVSY_DESKTOP_UPDATE_URL overrides the update feed (see updater.ts); empty
+// keeps the publish URL from electron-builder.yml.
+const mainDefine = {
   __DEVSY_POSTHOG_API_KEY__: JSON.stringify(
     process.env.DEVSY_POSTHOG_API_KEY ?? "",
+  ),
+  __DEVSY_UPDATE_URL__: JSON.stringify(
+    process.env.DEVSY_DESKTOP_UPDATE_URL ?? "",
   ),
 }
 
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
-    define: posthogApiKeyDefine,
+    define: mainDefine,
     build: {
       outDir: "dist/main",
       rollupOptions: {
