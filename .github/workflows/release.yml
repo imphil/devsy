@@ -186,10 +186,28 @@ jobs:
           # app updates from its own releases (see deploy-update-metadata).
           DEVSY_DESKTOP_UPDATE_URL: ${{ vars.DEVSY_DESKTOP_UPDATE_URL }}
 
-      - name: package and publish with electron-builder (macOS, signed)
+      # Without DEVSY_APPLE_CSC_LINK (e.g. in a fork) the app is ad-hoc signed
+      # and not notarized: it runs once the user allows it in System
+      # Settings > Privacy & Security, but can't update itself. An empty
+      # CSC_LINK must not reach electron-builder, which reads it as a path.
+      - name: package and publish with electron-builder (macOS)
         if: runner.os == 'macOS'
         working-directory: desktop
-        run: npx electron-builder ${{ matrix.builder-args }} --publish always --config electron-builder.yml $DETECT_UPDATE_CHANNEL
+        shell: bash
+        run: |
+          set -euo pipefail
+          signing=()
+          if [ -z "${CSC_LINK:-}" ]; then
+            echo "::warning::DEVSY_APPLE_CSC_LINK is not set: building an ad-hoc signed, unnotarized macOS app"
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+            signing=(
+              -c.mac.identity=-
+              -c.mac.entitlements=build/entitlements.mac.adhoc.plist
+              -c.mac.entitlementsInherit=build/entitlements.mac.adhoc.plist
+            )
+          fi
+          npx electron-builder ${{ matrix.builder-args }} --publish always --config electron-builder.yml \
+            $DETECT_UPDATE_CHANNEL ${signing[@]+"${signing[@]}"}
         env:
           DETECT_UPDATE_CHANNEL: ${{ vars.DEVSY_DESKTOP_UPDATE_URL && '-c.detectUpdateChannel=false' || '' }}
           GH_TOKEN: ${{ github.token }}
