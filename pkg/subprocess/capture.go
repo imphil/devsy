@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/devsy-org/devsy/pkg/secrets"
@@ -44,6 +45,9 @@ type Options struct {
 	// OperationID links diagnostics to the semantic operation that spawned
 	// the command. When empty, Run derives it from ctx.
 	OperationID string
+	// SysProcAttr, when set, is passed to the process (e.g. Windows creation
+	// flags).
+	SysProcAttr *syscall.SysProcAttr
 }
 
 // DiagnosticSink holds optional per-stream destinations for redacted output.
@@ -200,6 +204,7 @@ func Run(ctx context.Context, binary string, args []string, options Options) (Re
 		cmd.Env = append(os.Environ(), options.Env...)
 	}
 	cmd.Stdin = options.Stdin
+	cmd.SysProcAttr = options.SysProcAttr
 	redactor := commandRedactor(options)
 	result, err := runCommand(cmd, redactor, streams{
 		stdout: options.Stdout, diagnostic: options.Diagnostic,

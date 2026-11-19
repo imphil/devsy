@@ -186,7 +186,10 @@ func ownProcessTree(pid int, workerName string) error {
 	// The worker keeps the name open for cancellation; its exit also closes
 	// the last handle, which terminates any descendants it leaves behind.
 	var limits windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION
-	limits.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+	limits.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE |
+		// Lets an opened IDE leave the job (CREATE_BREAKAWAY_FROM_JOB, see
+		// pkg/ide/vscode): it must outlive the task that launched it.
+		windows.JOB_OBJECT_LIMIT_BREAKAWAY_OK
 	if _, err := windows.SetInformationJobObject(
 		job,
 		windows.JobObjectExtendedLimitInformation,

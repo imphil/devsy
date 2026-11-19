@@ -142,8 +142,28 @@ func runHostCLI(ctx context.Context, path string, args ...string) ([]byte, error
 		// Redacting or truncating it could hide an already-installed extension.
 		options.Stdout = &stdout
 	}
+	// On Windows a detached `up` task runs in a job object that kills every
+	// process left in it when the task ends -- including the IDE window this
+	// launches. Start the editor CLI outside the job; where breakaway is not
+	// allowed (an enclosing job forbids it), fall back to launching inside.
+	if attr := ideBreakawayProcAttr(); attr != nil {
+		options.SysProcAttr = attr
+		_, err := subprocess.Run(ctx, path, args, options)
+		if err == nil || !isStartError(err) {
+			return stdout.Bytes(), err
+		}
+		stdout.Reset()
+		options.SysProcAttr = nil
+	}
 	_, err := subprocess.Run(ctx, path, args, options)
 	return stdout.Bytes(), err
+}
+
+// isStartError reports whether the process could not be started at all (as
+// opposed to running and exiting with an error).
+func isStartError(err error) bool {
+	var exitErr *exec.ExitError
+	return !errors.As(err, &exitErr)
 }
 
 func validHostCLI(path string) bool {
