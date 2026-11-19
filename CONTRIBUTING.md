@@ -239,9 +239,14 @@ such as `v1.27.1-fork.1`. Keep the dot before the number: semver compares
   `dl.devsy.sh`, and names them `latest*.yml` even when the version has a
   suffix. Publish fork releases as normal releases, not prereleases: the
   update URL only finds the newest normal release.
-- Jobs that need upstream secrets don't work in a fork: macOS signing and
-  notarization (`DEVSY_APPLE_*`) and the Homebrew tap (`DEVSY_GITHUB_APP_*`,
-  skipped for prereleases).
+- Without the `DEVSY_APPLE_*` secrets the macOS app is ad-hoc signed and not
+  notarized. macOS blocks its first launch; allow it under System Settings >
+  Privacy & Security > Open Anyway, or run
+  `xattr -dr com.apple.quarantine /Applications/Devsy.app`. Such builds can't
+  update themselves; install new versions by hand. Windows builds are
+  unsigned in any case (SmartScreen: More info > Run anyway).
+- The Homebrew tap needs the `DEVSY_GITHUB_APP_*` secrets and fails in a fork
+  (it is skipped for prereleases).
 
 ## Developing providers
 
