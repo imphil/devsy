@@ -28,6 +28,74 @@ jobs:
             gh release create "$TAG" --repo "$REPO" --draft --verify-tag \
               --title "$TAG" --generate-notes
 
+  # The --clone-into-volume helper image (cmd/internal/agentworkspace/
+  # bootstrap.Dockerfile), published as
+  # ghcr.io/<owner>/devsy-volume-bootstrap:<first 12 hex of the file's sha256>.
+  # Devsy pulls it by that tag and builds it locally if it is missing, so a
+  # failure here never blocks a release. Built natively per architecture.
+  bootstrap-image:
+    name: Publish the volume bootstrap image (${{ matrix.arch }})
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: build and push
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+          OWNER: ${{ github.repository_owner }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          file=cmd/internal/agentworkspace/bootstrap.Dockerfile
+          image="ghcr.io/$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')/devsy-volume-bootstrap"
+          tag=$(sha256sum "$file" | cut -c1-12)
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          if docker buildx imagetools inspect "$image:$tag" >/dev/null 2>&1; then
+            echo "$image:$tag exists already"
+            exit 0
+          fi
+          docker buildx build --platform "linux/$ARCH" --provenance=false \
+            --tag "$image:$tag-$ARCH" --push -f "$file" "$(dirname "$file")"
+
+  bootstrap-image-manifest:
+    name: Publish the volume bootstrap image (multi-arch)
+    needs: bootstrap-image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: combine the architectures
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          file=cmd/internal/agentworkspace/bootstrap.Dockerfile
+          image="ghcr.io/$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')/devsy-volume-bootstrap"
+          tag=$(sha256sum "$file" | cut -c1-12)
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          if docker buildx imagetools inspect "$image:$tag" >/dev/null 2>&1; then
+            echo "$image:$tag exists already"
+            exit 0
+          fi
+          docker buildx imagetools create --tag "$image:$tag" \
+            "$image:$tag-amd64" "$image:$tag-arm64"
+
   build-cli:
     name: Build CLI Binary on ${{ matrix.runner }}
     needs: ensure-release
