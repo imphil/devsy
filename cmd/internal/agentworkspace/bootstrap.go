@@ -171,6 +171,7 @@ func (cmd *UpCmd) runInBootstrapContainer(
 		// The nested agent reports its phases (cloning, building, starting
 		// the container, ...) to us; relay them upstream like our own.
 		reporter:              reporter,
+		upstream:              tunnelClient,
 		setupLogOptions:       hop.Options(),
 		setupParentProducerID: run.ProducerID(),
 		dockerCmd:             dockerCmd,
@@ -494,6 +495,9 @@ type runNestedWorkspaceUpParams struct {
 	mountSubpath  string
 	debug         bool
 	reporter      status.Reporter
+	// upstream is this agent's tunnel to the CLI: the nested agent's GitHub
+	// CLI account requests (for lifecycle hooks) are relayed over it.
+	upstream tunnel.TunnelClient
 	// setupLogOptions accept the nested agent's setup history (see
 	// tunnelserver.SetupLogHop); setupParentProducerID chains its producer
 	// to this hop's.
@@ -573,6 +577,7 @@ func nestedUpServerOptions(p runNestedWorkspaceUpParams) []tunnelserver.Option {
 	return append([]tunnelserver.Option{
 		tunnelserver.WithSecrets(p.secretsEnv, p.secretsMount),
 		tunnelserver.WithStatusReporter(p.reporter),
+		tunnelserver.WithGitHubCredentialsUpstream(p.upstream),
 	}, p.setupLogOptions...)
 }
 

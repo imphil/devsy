@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -55,6 +56,12 @@ type ContainerSetupConfig struct {
 	SkipPostStart          bool
 	SkipPostAttach         bool
 	WaitFor                LifecyclePhase
+	// HookSecretsEnv and HookEnv reach only the lifecycle hooks this process
+	// runs (not deferred ones, not terminals) and are never written to disk:
+	// e.g. the host's GitHub CLI tokens and GH_HOST. HookSecretsEnv values are
+	// masked in hook output.
+	HookSecretsEnv []string
+	HookEnv        []string
 }
 
 // SetupContainerPreAttach runs container setup up to and including the waitFor
@@ -102,7 +109,8 @@ func SetupContainerPreAttach(
 	deferred, err := RunPreAttachHooks(ctx, cfg.SetupInfo, PreAttachOptions{
 		Prebuild:     cfg.Prebuild,
 		Dotfiles:     cfg.Dotfiles,
-		SecretsEnv:   cfg.SecretsEnv,
+		SecretsEnv:   slices.Concat(cfg.SecretsEnv, cfg.HookSecretsEnv),
+		ExtraEnv:     cfg.HookEnv,
 		SecretsMount: cfg.SecretsMount,
 		Skip: SkipPhases{
 			PostCreate: cfg.SkipPostCreate,

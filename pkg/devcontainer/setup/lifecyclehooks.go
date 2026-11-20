@@ -166,6 +166,19 @@ func mergeSecretsEnv(env map[string]string, secretsEnv, secretsMount []string) *
 	return redactor
 }
 
+// mergeExtraEnv adds KEY=VALUE entries; keys the configuration sets win.
+func mergeExtraEnv(env map[string]string, extra []string) {
+	for _, entry := range extra {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok || key == "" {
+			continue
+		}
+		if _, exists := env[key]; !exists {
+			env[key] = value
+		}
+	}
+}
+
 // MountSecretsForRedaction reads SecretsMountDir into "name=value" entries so a
 // re-exec'd hook process (which lacks the mount values in its env) can still
 // mask them in logs. Best-effort: unreadable entries are skipped.
@@ -311,6 +324,9 @@ type PreAttachOptions struct {
 	Skip         SkipPhases
 	WaitFor      LifecyclePhase
 	Terminal     tunnel.TerminalSession
+	// ExtraEnv adds KEY=VALUE entries to the hooks' environment unless the
+	// configuration sets the key (not masked; see SecretsEnv for secrets).
+	ExtraEnv []string
 }
 
 // RunPreAttachHooks runs lifecycle hooks up to and including the waitFor phase
@@ -334,6 +350,7 @@ func RunPreAttachHooks(
 	}
 	env := resolveLifecycleEnv(ctx, setupInfo)
 	redactor := mergeSecretsEnv(env.remoteEnv, opts.SecretsEnv, opts.SecretsMount)
+	mergeExtraEnv(env.remoteEnv, opts.ExtraEnv)
 	all := preAttachPhaseParams(ctx, setupInfo, env, opts.Prebuild)
 	for i := range all {
 		all[i].params.redactor = redactor

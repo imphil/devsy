@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -579,7 +580,12 @@ func (r *runner) executeSetup(
 	secretsEnv, secretsMount := secretOpts.env, secretOpts.mount
 	setupLogOptions := tunnelserver.SetupLogOptionsFrom(ctx)
 	runSetupServer := func(ctx context.Context, stdin io.WriteCloser, stdout io.Reader) (*config.Result, error) {
-		options := setupLogOptions
+		// The agent's tunnel to the CLI (named for its first use, the
+		// lifecycle terminal) also carries the GitHub CLI accounts for hooks.
+		options := append(
+			slices.Clone(setupLogOptions),
+			tunnelserver.WithGitHubCredentialsUpstream(r.lifecycleTerminalClient),
+		)
 		if req := r.workspaceConfig.CLIOptions.LifecycleTerminal; req != nil {
 			options = append(
 				options,

@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/devsy-org/devsy/cmd/flags"
 	"github.com/devsy-org/devsy/pkg/agent"
@@ -27,11 +28,13 @@ import (
 	"github.com/devsy-org/devsy/pkg/dockercredentials"
 	cliflags "github.com/devsy-org/devsy/pkg/flags"
 	"github.com/devsy-org/devsy/pkg/flags/names"
+	"github.com/devsy-org/devsy/pkg/ghcredentials"
 	"github.com/devsy-org/devsy/pkg/git"
 	"github.com/devsy-org/devsy/pkg/log"
 	provider2 "github.com/devsy-org/devsy/pkg/provider"
 	"github.com/devsy-org/devsy/pkg/status"
 	"github.com/spf13/cobra"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 // SetupContainerCmd holds the cmd flags.
@@ -81,6 +84,10 @@ type containerState struct {
 	secretsMount  []string
 	lifecycle     *lifecycleHandshake
 	run           *containerRun
+	// releaseGitCredentials removes the setup credential helper. It stays
+	// configured through the lifecycle hooks this process runs, so Git in
+	// postCreateCommand & co. can reach private repositories too.
+	releaseGitCredentials func()
 }
 
 // Run runs the command logic.
@@ -187,6 +194,11 @@ func (cmd *SetupContainerCmd) beginRun(
 }
 
 func (cmd *SetupContainerCmd) runSetup(ctx context.Context, state *containerState) error {
+	defer func() {
+		if state.releaseGitCredentials != nil {
+			state.releaseGitCredentials()
+		}
+	}()
 	if err := cmd.prepareWorkspace(ctx, state); err != nil {
 		return err
 	}
@@ -300,24 +312,42 @@ func (cmd *SetupContainerCmd) prepareWorkspace(
 		return err
 	}
 
-	cleanupFunc := cmd.setupGitCredentials(
+	state.releaseGitCredentials = cmd.setupGitCredentials(
 		ctx,
 		state.tunnelClient,
 		config.GetRemoteUser(state.setupInfo),
 	)
 
-	cloneErr := cmd.cloneRepositoryIfNeeded(
+	return cmd.cloneRepositoryIfNeeded(
 		ctx,
 		state.workspaceInfo,
 		state.setupInfo,
 		state.reporter,
 	)
+}
 
-	if cleanupFunc != nil {
-		cleanupFunc()
+// githubHookEnv asks the CLI's host for its GitHub CLI accounts, so gh in the
+// lifecycle hooks this process runs is signed in like in SSH sessions. The
+// CLI answers only when the context forwards GitHub CLI credentials; any
+// refusal or older peer means no variables.
+func githubHookEnv(ctx context.Context, client tunnel.TunnelClient) (secrets, plain []string) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	response, err := client.GitHubCredentials(ctx, &tunnel.Empty{})
+	if err != nil {
+		log.Debugf("GitHub CLI accounts for lifecycle hooks unavailable: %s", grpcstatus.Code(err))
+		return nil, nil
 	}
-
-	return cloneErr
+	var result ghcredentials.HostResult
+	if err := json.Unmarshal([]byte(response.GetMessage()), &result); err != nil {
+		log.Debugf("GitHub CLI accounts for lifecycle hooks: undecodable answer")
+		return nil, nil
+	}
+	if len(result.Accounts) == 0 {
+		log.Debugf("GitHub CLI accounts for lifecycle hooks: none (%s)", result.Status)
+		return nil, nil
+	}
+	return ghcredentials.HookEnv(result.Accounts)
 }
 
 // fetchSecrets pulls secrets over the tunnel.
@@ -364,6 +394,10 @@ func (cmd *SetupContainerCmd) finalizeSetup(ctx context.Context, state *containe
 			InstallScript: cmd.DotfilesScript,
 			RemoteUser:    config.GetRemoteUser(state.setupInfo),
 		},
+	}
+
+	if !cmd.Prebuild {
+		cfg.HookSecretsEnv, cfg.HookEnv = githubHookEnv(ctx, state.tunnelClient)
 	}
 
 	deferred, err := cmd.preAttach(ctx, state, cfg, tunnelserver.OpenLifecycleTerminal)

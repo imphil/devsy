@@ -3,6 +3,7 @@ package tunnelserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -129,4 +130,47 @@ func startGitHubBoundary(t *testing.T, ctx context.Context, allowed bool) github
 	ready, err := credentials.ProbeReadiness(ctx, httpLn.Addr().(*net.TCPAddr).Port, status)
 	require.NoError(t, err)
 	return githubBoundary{ready: ready, lookups: &lookups}
+}
+
+// upstreamGitHub answers GitHubCredentials like the next host towards the CLI.
+type upstreamGitHub struct {
+	tunnel.TunnelClient
+	calls   atomic.Int32
+	message string
+	err     error
+}
+
+func (u *upstreamGitHub) GitHubCredentials(
+	context.Context, *tunnel.Empty, ...grpc.CallOption,
+) (*tunnel.Message, error) {
+	u.calls.Add(1)
+	if u.err != nil {
+		return nil, u.err
+	}
+	return &tunnel.Message{Message: u.message}, nil
+}
+
+func TestGitHubCredentialsUpstreamRelaysTheCLIsAnswer(t *testing.T) {
+	upstream := &upstreamGitHub{message: `{"accounts":[],"status":"ok"}`}
+	// A hop has no permission of its own and never runs gh itself.
+	server := New(WithGitHubCredentialsUpstream(upstream))
+	server.githubAccounts = func(context.Context) ghcredentials.HostResult {
+		t.Fatal("a hop must not look up local accounts")
+		return ghcredentials.HostResult{}
+	}
+	response, err := server.GitHubCredentials(context.Background(), &tunnel.Empty{})
+	require.NoError(t, err)
+	require.Equal(t, upstream.message, response.GetMessage())
+	require.Equal(t, int32(1), upstream.calls.Load())
+
+	denied := &upstreamGitHub{err: errors.New("GitHub CLI credentials forbidden")}
+	_, err = New(WithGitHubCredentialsUpstream(denied)).
+		GitHubCredentials(context.Background(), &tunnel.Empty{})
+	require.ErrorContains(t, err, "forbidden")
+}
+
+func TestGitHubCredentialsUpstreamIgnoresNil(t *testing.T) {
+	server := New(WithGitHubCredentialsUpstream(nil))
+	_, err := server.GitHubCredentials(context.Background(), &tunnel.Empty{})
+	require.ErrorContains(t, err, "forbidden")
 }

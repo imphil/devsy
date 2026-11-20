@@ -161,6 +161,9 @@ type tunnelServer struct {
 	allowGitCredentials    bool
 	allowGitHubCredentials bool
 	githubAccounts         func(context.Context) ghcredentials.HostResult
+	// githubUpstream answers GitHubCredentials for a hop between the
+	// workspace container and the CLI: the CLI's host has the GitHub CLI.
+	githubUpstream         tunnel.TunnelClient
 	allowDockerCredentials bool
 	allowKubeConfig        bool
 	allowPlatformOptions   bool
@@ -333,6 +336,9 @@ func (t *tunnelServer) GitHubCredentials(
 	ctx context.Context,
 	_ *tunnel.Empty,
 ) (*tunnel.Message, error) {
+	if t.githubUpstream != nil {
+		return t.githubUpstream.GitHubCredentials(ctx, &tunnel.Empty{})
+	}
 	if !t.allowGitHubCredentials {
 		return nil, grpcstatus.Error(codes.PermissionDenied, "GitHub CLI credentials forbidden")
 	}

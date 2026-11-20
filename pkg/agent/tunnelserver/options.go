@@ -15,6 +15,17 @@ import (
 
 type Option func(*tunnelServer) *tunnelServer
 
+// WithGitHubCredentialsUpstream relays GitHubCredentials to the next host
+// towards the CLI, which decides whether to answer (setup tunnels of an up).
+func WithGitHubCredentialsUpstream(client tunnel.TunnelClient) Option {
+	return func(s *tunnelServer) *tunnelServer {
+		if client != nil {
+			s.githubUpstream = client
+		}
+		return s
+	}
+}
+
 func WithAllowGitHubCredentials(allow bool) Option {
 	return func(s *tunnelServer) *tunnelServer { s.allowGitHubCredentials = allow; return s }
 }

@@ -264,10 +264,17 @@ func (cmd *UpCmd) devsyUpMachineSSH(
 		cmd.LifecycleTerminal != nil,
 	)
 
+	allowGitCredentials := client.AgentInjectGitCredentials(cmd.CLIOptions)
 	options := append([]tunnelserver.Option{
 		tunnelserver.WithSecrets(cmd.SecretsEnv, cmd.SecretsMount),
 		tunnelserver.WithGitToken(cmd.GitToken),
 		tunnelserver.WithStatusReporter(cmd.reporter()),
+		// Lifecycle hooks get the host's GitHub CLI accounts under the same
+		// context option as SSH sessions, and never without Git forwarding.
+		tunnelserver.WithAllowGitHubCredentials(
+			allowGitCredentials &&
+				devsyConfig.ContextOption(config.ContextOptionGitHubCLIForwarding) == config.BoolTrue,
+		),
 	}, cmd.setupHop.Options()...)
 	if lifecycleOption != nil {
 		options = append(options, lifecycleOption)
@@ -289,7 +296,7 @@ func (cmd *UpCmd) devsyUpMachineSSH(
 			return tunnelserver.RunUpServer(ctx, tunnelserver.UpSpec{
 				Reader:                 stdout,
 				Writer:                 stdin,
-				AllowGitCredentials:    client.AgentInjectGitCredentials(cmd.CLIOptions),
+				AllowGitCredentials:    allowGitCredentials,
 				AllowDockerCredentials: client.AgentInjectDockerCredentials(cmd.CLIOptions),
 				Workspace:              client.WorkspaceConfig(),
 				Options:                options,
