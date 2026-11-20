@@ -1297,7 +1297,11 @@ func (r *runner) withSecretsMount(
 	if err != nil {
 		return nil, err
 	}
-	if mount != nil {
+	// A devcontainer.json that mounts its own volume at /run/secrets chose
+	// where its secrets live (shared and persistent across its containers):
+	// write the files there instead of adding a conflicting tmpfs, which
+	// Docker rejects as a duplicate mount point.
+	if mount != nil && !hasMountTarget(mounts, config.SecretsMountDir) {
 		mounts = append(mounts, mount)
 	}
 	envMount, err := r.secretsEnvironmentMount()

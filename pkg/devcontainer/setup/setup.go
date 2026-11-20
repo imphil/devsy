@@ -162,7 +162,14 @@ func writeSecretFiles(cfg *ContainerSetupConfig) error {
 	if len(cfg.SecretsMount) == 0 {
 		return nil
 	}
-	if err := validateSecretFileRuntime(config.SecretsMountDir); err != nil {
+	validate := validateSecretFileRuntime
+	if configMountsAt(cfg.SetupInfo, config.SecretsMountDir) {
+		// The configuration mounts its own volume there (shared and
+		// persistent by its choice); it only has to be that mount, not a
+		// directory of the container's own filesystem.
+		validate = validateConfiguredSecretFileRuntime
+	}
+	if err := validate(config.SecretsMountDir); err != nil {
 		return err
 	}
 
@@ -195,9 +202,24 @@ func writeSecretEnvironment(entries, names []string, user string) error {
 }
 
 var (
-	validateSecretEnvironmentRuntime = validateSecretEnvironmentMount
-	validateSecretFileRuntime        = validateSecretFileMount
+	validateSecretEnvironmentRuntime    = validateSecretEnvironmentMount
+	validateSecretFileRuntime           = validateSecretFileMount
+	validateConfiguredSecretFileRuntime = validateConfiguredSecretFileMount
 )
+
+// configMountsAt reports whether the merged configuration mounts something at
+// target (devcontainer.json "mounts").
+func configMountsAt(setupInfo *config.Result, target string) bool {
+	if setupInfo == nil || setupInfo.MergedConfig == nil {
+		return false
+	}
+	for _, mount := range setupInfo.MergedConfig.Mounts {
+		if mount != nil && filepath.Clean(mount.Target) == filepath.Clean(target) {
+			return true
+		}
+	}
+	return false
+}
 
 func writeSecretEnvironmentAt(dir string, entries, names []string, user string) error {
 	if err := clearSecretEnvironmentDir(dir); err != nil {

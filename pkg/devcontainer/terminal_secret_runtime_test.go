@@ -98,8 +98,12 @@ func TestNeedsSecretFileMountMigration(t *testing.T) {
 		needsSecretFileMountMigration(details, []string{secretFileMountRequestSentinel}),
 	)
 
+	// Any other mount there came from devcontainer.json (e.g. a named volume
+	// shared by the repository's containers): Devsy writes into it instead of
+	// recreating the container. The in-container setup checks that the
+	// configuration declares it.
 	details.Mounts[0].Type = mountTypeBind
-	require.True(
+	require.False(
 		t,
 		needsSecretFileMountMigration(details, []string{secretFileMountRequestSentinel}),
 	)

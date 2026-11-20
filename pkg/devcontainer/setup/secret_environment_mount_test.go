@@ -72,3 +72,20 @@ func TestValidateSecretFileMountInfo(t *testing.T) {
 	require.NoError(t, err)
 	require.Error(t, validateSecretFileMountInfo(mounts, config.SecretsMountDir))
 }
+
+func TestValidateConfiguredSecretFileMountInfo(t *testing.T) {
+	// A named volume the configuration mounts there is accepted.
+	mounts, err := mountinfo.GetMountsFromReader(
+		strings.NewReader("36 35 0:32 / "+config.SecretsMountDir+" rw - ext4 /dev/vda1 rw\n"),
+		mountinfo.SingleEntryFilter(config.SecretsMountDir),
+	)
+	require.NoError(t, err)
+	require.NoError(t, validateConfiguredSecretFileMountInfo(mounts, config.SecretsMountDir))
+
+	// A plain directory of the container's filesystem is not.
+	require.ErrorContains(
+		t,
+		validateConfiguredSecretFileMountInfo(nil, config.SecretsMountDir),
+		"recreate the workspace",
+	)
+}

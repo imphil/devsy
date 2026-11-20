@@ -19,6 +19,31 @@ func validateSecretFileMount(dir string) error {
 	return validateSecretRuntimeMount(dir, "file-mounted secrets")
 }
 
+// validateConfiguredSecretFileMount accepts any dedicated mount at dir: one
+// the configuration asked for (e.g. a named volume shared by its containers).
+// A plain directory of the container's filesystem is still refused.
+func validateConfiguredSecretFileMount(dir string) error {
+	cleaned := filepath.Clean(dir)
+	mounts, err := mountinfo.GetMounts(mountinfo.SingleEntryFilter(cleaned))
+	if err != nil {
+		return fmt.Errorf("inspect file-mounted secrets mount %s: %w", cleaned, err)
+	}
+	return validateConfiguredSecretFileMountInfo(mounts, cleaned)
+}
+
+func validateConfiguredSecretFileMountInfo(mounts []*mountinfo.Info, dir string) error {
+	cleaned := filepath.Clean(dir)
+	for _, mount := range mounts {
+		if filepath.Clean(mount.Mountpoint) == cleaned {
+			return nil
+		}
+	}
+	return fmt.Errorf(
+		"cannot inject file-mounted secrets: devcontainer.json mounts %s, but it is not mounted; recreate the workspace",
+		cleaned,
+	)
+}
+
 func validateSecretRuntimeMount(dir, secretType string) error {
 	cleaned := filepath.Clean(dir)
 	mounts, err := mountinfo.GetMounts(mountinfo.SingleEntryFilter(cleaned))

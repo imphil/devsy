@@ -246,6 +246,17 @@ func TestWithSecretsMountUsesCurrentUpRequest(t *testing.T) {
 	require.Empty(t, mounts)
 }
 
+func TestWithSecretsMountKeepsAConfiguredSecretsVolume(t *testing.T) {
+	r := &runner{driver: terminalSecretMountDriver{supported: true}}
+	volume := &config.Mount{
+		Type: "volume", Source: "electric-vapor-secrets", Target: config.SecretsMountDir + "/",
+	}
+	mounts, err := r.withSecretsMount([]*config.Mount{volume}, true)
+	require.NoError(t, err)
+	// No second mount at /run/secrets: Docker rejects duplicate mount points.
+	require.Equal(t, []*config.Mount{volume}, mounts)
+}
+
 func TestWithResolvedUser(t *testing.T) {
 	parsed := &config.DevContainerConfig{}
 	parsed.RunArgs = []string{"--cap-add=SYS_PTRACE"}
