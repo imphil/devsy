@@ -351,12 +351,18 @@ func (s *Store) registerFromFirstRecord(rec *Record) error {
 	})
 }
 
+// refreshDiscoverySealed seals discovery once every top-level producer of this
+// store has sealed its own. A producer is top-level here when its parent is not
+// in this store: the root on the CLI host, or the first producer of a hop
+// (an agent or a container) whose parent lives further up. Checking only roots
+// would seal a hop's store with its first record, since a hop has none, and
+// reject every producer mirrored into it afterwards.
 func (m *RunManifest) refreshDiscoverySealed() {
 	if m.DiscoverySealed || len(m.Producers) == 0 {
 		return
 	}
 	for _, p := range m.Producers {
-		if p.ParentProducerID == "" && !p.Sealed {
+		if !p.Sealed && m.producer(p.ParentProducerID) < 0 {
 			return
 		}
 	}

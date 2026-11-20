@@ -113,3 +113,37 @@ func TestStartSessionFailsAndSealsRunWhenRecorderCannotStart(t *testing.T) {
 	assert.Equal(t, CommandFailed, m.CommandState)
 	assert.True(t, m.DiscoverySealed)
 }
+
+// A hop (an agent relaying a container's history) has no root producer: its
+// own producer's parent lives further up. Discovery must stay open until that
+// producer seals, or the mirrored container producer is rejected.
+func TestHopStoreAcceptsMirroredProducerUntilHopSeals(t *testing.T) {
+	s, _ := newTestStore(t)
+	hop := StartSessionIn(s, SessionOptions{
+		RunID:            NewID(),
+		ParentProducerID: NewID(),
+		Location:         LocationProviderHost,
+		Run:              RunSpec{Context: testContext, Command: "up", WorkspaceUID: "u"},
+	})
+	require.NotNil(t, hop)
+
+	m, err := s.Manifest(hop.RunID)
+	require.NoError(t, err)
+	assert.False(t, m.DiscoverySealed, "a hop's first record must not seal discovery")
+
+	container := ProducerRef{
+		ProducerID: NewID(), ParentProducerID: hop.ProducerID(), State: ProducerRunning,
+		Location: LocationContainer,
+	}
+	require.NoError(t, s.RegisterProducer(hop.RunID, container))
+
+	hop.Finish(nil, true)
+	m, err = s.Manifest(hop.RunID)
+	require.NoError(t, err)
+	assert.True(t, m.DiscoverySealed, "sealing the hop's producer seals discovery")
+	require.ErrorIs(
+		t,
+		s.RegisterProducer(hop.RunID, ProducerRef{ProducerID: NewID()}),
+		ErrDiscoverySealed,
+	)
+}
