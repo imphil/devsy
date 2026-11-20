@@ -130,6 +130,7 @@ const (
 	TerminalColumns         = "terminal-columns"
 	TerminalRows            = "terminal-rows"
 	InteractivePostStart    = "interactive-post-start"
+	WaitFor                 = "wait-for"
 )
 
 // IDE.

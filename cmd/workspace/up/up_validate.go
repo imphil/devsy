@@ -27,6 +27,9 @@ const (
 )
 
 func (cmd *UpCmd) validate() error {
+	if err := cmd.validateWaitFor(); err != nil {
+		return err
+	}
 	if err := cmd.validateInteractivePostStart(); err != nil {
 		return err
 	}
@@ -58,6 +61,23 @@ func (cmd *UpCmd) validate() error {
 	}
 
 	return validateRemoteUserUID(cmd.UpdateRemoteUserUIDDefault)
+}
+
+// waitForPhases are the hooks --wait-for accepts (postAttachCommand runs
+// when a session attaches, so up cannot wait for it).
+var waitForPhases = []string{
+	"onCreateCommand", "updateContentCommand", "postCreateCommand", "postStartCommand",
+}
+
+func (cmd *UpCmd) validateWaitFor() error {
+	if cmd.WaitFor == "" || slices.Contains(waitForPhases, cmd.WaitFor) {
+		return nil
+	}
+	return fmt.Errorf(
+		"--wait-for must be one of %s, not %q",
+		strings.Join(waitForPhases, ", "),
+		cmd.WaitFor,
+	)
 }
 
 func (cmd *UpCmd) validateInteractivePostStart() error {

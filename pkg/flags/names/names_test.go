@@ -64,6 +64,7 @@ var wireNames = []struct {
 	{names.TerminalColumns, "terminal-columns"},
 	{names.TerminalRows, "terminal-rows"},
 	{names.InteractivePostStart, "interactive-post-start"},
+	{names.WaitFor, "wait-for"},
 	{names.ID, "id"},
 	{names.Machine, "machine"},
 	{names.Source, "source"},

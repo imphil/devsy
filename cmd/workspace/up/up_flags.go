@@ -101,6 +101,11 @@ func (cmd *UpCmd) registerLifecycleFlags(upCmd *cobra.Command) {
 			false,
 			"Attach the terminal to postStartCommand; requires an attached terminal and runs post-start in the foreground",
 		),
+		flags.String(&cmd.WaitFor, names.WaitFor, "",
+			"Run the lifecycle hooks up to this one before up returns: onCreateCommand, "+
+				"updateContentCommand, postCreateCommand or postStartCommand. Raises "+
+				"devcontainer.json's waitFor, never lowers it. Hooks that run before up "+
+				"returns can use the forwarded Git and GitHub CLI credentials"),
 		flags.Int(&cmd.TerminalColumns, names.TerminalColumns, 0,
 			"Terminal column count for lifecycle scripts"),
 		flags.Int(&cmd.TerminalRows, names.TerminalRows, 0,
