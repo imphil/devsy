@@ -16,6 +16,7 @@ import (
 	"github.com/devsy-org/devsy/pkg/config"
 	cliflags "github.com/devsy-org/devsy/pkg/flags"
 	"github.com/devsy-org/devsy/pkg/flags/names"
+	"github.com/devsy-org/devsy/pkg/log"
 	"github.com/devsy-org/devsy/pkg/output"
 	"github.com/devsy-org/devsy/pkg/workspace"
 	"github.com/devsy-org/devsy/pkg/workspacelogs"
@@ -614,10 +615,12 @@ func (a *agentRefresher) fetch(
 		RawStdout: true,
 	})
 	if err != nil {
+		log.Debugf("setup history refresh: remote reader failed: %v: %s", err, stderr.String())
 		return nil, classifyRemoteFailure(stderr.String())
 	}
 	resp, err := workspacelogs.DecodeReadResponse(strings.NewReader(stdout.String()))
 	if err != nil {
+		log.Debugf("setup history refresh: undecodable remote page: %v", err)
 		return nil, workspacelogs.ReasonRefreshFailed
 	}
 
