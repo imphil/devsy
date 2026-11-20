@@ -365,35 +365,42 @@ func writeSecretEnvironmentFile(dir, name, value string) error {
 }
 
 func writeSecretFile(name, value, user string) error {
-	path, err := secretMountPath(name)
-	if err != nil {
+	if _, err := secretMountPath(name); err != nil {
 		return err
 	}
+	return writeSecretFileIn(config.SecretsMountDir, name, value, user)
+}
 
-	// Remove any pre-planted symlink (unlinks the link, not its target), then
-	// O_EXCL-create so the write cannot be redirected outside SecretsMountDir.
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("prepare secret file %s: %w", name, err)
-	}
-	f, err := os.OpenFile(
-		path,
-		os.O_WRONLY|os.O_CREATE|os.O_EXCL,
-		0o600,
-	) // #nosec G304 -- path validated to a plain filename under SecretsMountDir.
+// writeSecretFileIn replaces dir/name in one step: the value goes into a new
+// temporary file in dir (O_EXCL, 0600, owned by user) that is then renamed over
+// the target. A reader sees the old content or the new one, never a missing
+// or partial file, which matters when tools read the file while a renewed
+// value is written (a shared /run/secrets volume). rename replaces a planted
+// symlink itself rather than writing through it.
+func writeSecretFileIn(dir, name, value, user string) (err error) {
+	f, err := os.CreateTemp(dir, "."+name+".tmp-*")
 	if err != nil {
 		return fmt.Errorf("write secret file %s: %w", name, err)
 	}
-	if _, err := f.WriteString(value); err != nil {
+	tmp := f.Name()
+	defer func() {
+		if err != nil {
+			_ = os.Remove(tmp)
+		}
+	}()
+	if _, err = f.WriteString(value); err != nil {
 		_ = f.Close()
 		return fmt.Errorf("write secret file %s: %w", name, err)
 	}
-	if err := f.Close(); err != nil {
+	if err = f.Close(); err != nil {
 		return fmt.Errorf("write secret file %s: %w", name, err)
 	}
-	if err := copy2.Chown(path, user); err != nil {
+	if err = copy2.Chown(tmp, user); err != nil {
 		return fmt.Errorf("chown secret file %s: %w", name, err)
 	}
-
+	if err = os.Rename(tmp, filepath.Join(dir, name)); err != nil {
+		return fmt.Errorf("write secret file %s: %w", name, err)
+	}
 	return nil
 }
 
