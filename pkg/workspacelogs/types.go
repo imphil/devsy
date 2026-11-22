@@ -221,6 +221,8 @@ var validHooks = map[string]struct{}{
 	"postCreateCommand":    {},
 	"postStartCommand":     {},
 	"postAttachCommand":    {},
+	// Devsy's own hook (customizations.devsy.onSecretsChangedCommand).
+	"onSecretsChangedCommand": {},
 }
 
 // ValidHook reports whether name is an exact lifecycle property name.

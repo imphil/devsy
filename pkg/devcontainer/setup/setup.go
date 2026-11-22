@@ -158,18 +158,22 @@ func validateContainerSetupConfig(cfg *ContainerSetupConfig) error {
 	return nil
 }
 
+// secretFileRuntimeValidator checks /run/secrets before files are written
+// there. When the configuration mounts its own volume there (shared and
+// persistent by its choice), it only has to be that mount, not a directory of
+// the container's own filesystem; otherwise it must be Devsy's tmpfs.
+func secretFileRuntimeValidator(setupInfo *config.Result) func(string) error {
+	if configMountsAt(setupInfo, config.SecretsMountDir) {
+		return validateConfiguredSecretFileRuntime
+	}
+	return validateSecretFileRuntime
+}
+
 func writeSecretFiles(cfg *ContainerSetupConfig) error {
 	if len(cfg.SecretsMount) == 0 {
 		return nil
 	}
-	validate := validateSecretFileRuntime
-	if configMountsAt(cfg.SetupInfo, config.SecretsMountDir) {
-		// The configuration mounts its own volume there (shared and
-		// persistent by its choice); it only has to be that mount, not a
-		// directory of the container's own filesystem.
-		validate = validateConfiguredSecretFileRuntime
-	}
-	if err := validate(config.SecretsMountDir); err != nil {
+	if err := secretFileRuntimeValidator(cfg.SetupInfo)(config.SecretsMountDir); err != nil {
 		return err
 	}
 

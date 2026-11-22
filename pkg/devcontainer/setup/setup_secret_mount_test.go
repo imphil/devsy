@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testFileSecret = "FILE_SECRET=sentinel-value"
+
 func TestWriteSecretFilesRequiresTmpfsMount(t *testing.T) {
 	mountErr := errors.New("required tmpfs mount is missing")
 	originalValidator := validateSecretFileRuntime
@@ -18,7 +20,7 @@ func TestWriteSecretFilesRequiresTmpfsMount(t *testing.T) {
 	t.Cleanup(func() { validateSecretFileRuntime = originalValidator })
 
 	err := writeSecretFiles(&ContainerSetupConfig{
-		SecretsMount: []string{"FILE_SECRET=sentinel-value"},
+		SecretsMount: []string{testFileSecret},
 	})
 	require.ErrorIs(t, err, mountErr)
 }
@@ -39,14 +41,14 @@ func TestWriteSecretFilesUsesTheConfiguredSecretsMountCheck(t *testing.T) {
 	}}
 	err := writeSecretFiles(&ContainerSetupConfig{
 		SetupInfo:    setupInfo,
-		SecretsMount: []string{"FILE_SECRET=sentinel-value"},
+		SecretsMount: []string{testFileSecret},
 	})
 	require.ErrorIs(t, err, configuredErr)
 
 	setupInfo.MergedConfig.Mounts = nil
 	err = writeSecretFiles(&ContainerSetupConfig{
 		SetupInfo:    setupInfo,
-		SecretsMount: []string{"FILE_SECRET=sentinel-value"},
+		SecretsMount: []string{testFileSecret},
 	})
 	require.ErrorIs(t, err, tmpfsErr)
 }
@@ -67,13 +69,13 @@ func TestWriteSecretFileInReplacesInOneStep(t *testing.T) {
 	require.NoError(t, os.Symlink(outside, target))
 
 	require.NoError(t, writeSecretFileIn(dir, "ARTIFACTORY_TOKEN", "new", ""))
-	got, err := os.ReadFile(target)
+	got, err := os.ReadFile(target) //nolint:gosec // test file from TempDir
 	require.NoError(t, err)
 	require.Equal(t, "new", string(got))
 	info, err := os.Lstat(target)
 	require.NoError(t, err)
 	require.True(t, info.Mode().IsRegular(), "the link itself was replaced")
-	kept, err := os.ReadFile(outside)
+	kept, err := os.ReadFile(outside) //nolint:gosec // test file from TempDir
 	require.NoError(t, err)
 	require.Equal(t, "keep", string(kept))
 
@@ -92,7 +94,7 @@ func TestWriteSecretFileInKeepsReadersWhole(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		for i := 0; i < 200; i++ {
+		for i := range 200 {
 			value := a
 			if i%2 == 0 {
 				value = b
@@ -109,7 +111,7 @@ func TestWriteSecretFileInKeepsReadersWhole(t *testing.T) {
 			return
 		default:
 		}
-		got, err := os.ReadFile(target)
+		got, err := os.ReadFile(target) //nolint:gosec // test file from TempDir
 		require.NoError(t, err, "the file never disappears")
 		require.True(t, string(got) == a || string(got) == b, "never a partial file")
 	}

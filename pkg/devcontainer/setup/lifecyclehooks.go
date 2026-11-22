@@ -2,6 +2,8 @@ package setup
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"maps"
@@ -36,6 +38,11 @@ const (
 	PhasePostCreate        LifecyclePhase = "postCreateCommand"
 	PhasePostStart         LifecyclePhase = "postStartCommand"
 	PhasePostAttach        LifecyclePhase = "postAttachCommand"
+	// PhaseSecretsChanged is Devsy's own hook
+	// (customizations.devsy.onSecretsChangedCommand): it runs right after the
+	// mount secrets are written, before onCreateCommand, whenever their
+	// values changed since it last ran.
+	PhaseSecretsChanged LifecyclePhase = "onSecretsChangedCommand"
 )
 
 // DefaultWaitFor is the spec-defined default for the waitFor property.
@@ -304,6 +311,8 @@ type phaseHook struct {
 	phase   LifecyclePhase
 	params  hookRunParams
 	runFunc func() error
+	// continueOnError logs a failure instead of stopping the later phases.
+	continueOnError bool
 }
 
 // SkipPhases controls which lifecycle phases should be skipped.
@@ -351,7 +360,10 @@ func RunPreAttachHooks(
 	env := resolveLifecycleEnv(ctx, setupInfo)
 	redactor := mergeSecretsEnv(env.remoteEnv, opts.SecretsEnv, opts.SecretsMount)
 	mergeExtraEnv(env.remoteEnv, opts.ExtraEnv)
-	all := preAttachPhaseParams(ctx, setupInfo, env, opts.Prebuild)
+	all := prependPhase(
+		preAttachPhaseParams(ctx, setupInfo, env, opts.Prebuild),
+		secretsChangedPhase(ctx, setupInfo, env, opts.SecretsMount),
+	)
 	for i := range all {
 		all[i].params.redactor = redactor
 		if all[i].phase == PhasePostStart {
@@ -510,7 +522,62 @@ func runPhaseHook(ph phaseHook) error {
 	if ph.runFunc != nil {
 		return ph.runFunc()
 	}
-	return runHook(ph.params)
+	err := runHook(ph.params)
+	if err != nil && ph.continueOnError {
+		log.Warnf("%s failed, continuing: %v", ph.phase, err)
+		return nil
+	}
+	return err
+}
+
+// prependPhase puts ph first, when there is one.
+func prependPhase(all []phaseHook, ph *phaseHook) []phaseHook {
+	if ph == nil {
+		return all
+	}
+	return slices.Insert(all, 0, *ph)
+}
+
+// secretsChangedPhase returns the onSecretsChangedCommand phase, or nil, when the
+// configuration sets one and mount secrets are passed. Its run marker is a
+// digest of the secret names and values, so it runs once per distinct set of
+// values: on the first start and after every change. A failure does not stop
+// the lifecycle hooks after it.
+func secretsChangedPhase(
+	ctx context.Context,
+	setupInfo *config.Result,
+	env lifecycleEnv,
+	secretsMount []string,
+) *phaseHook {
+	commands := config.SecretsChangedCommands(setupInfo.MergedConfig)
+	if len(commands) == 0 || len(secretsMount) == 0 {
+		return nil
+	}
+	return &phaseHook{
+		phase: PhaseSecretsChanged,
+		params: hookRunParams{
+			ctx:      ctx,
+			commands: commands,
+			env:      env,
+			name:     "onSecretsChangedCommands",
+			hook:     string(PhaseSecretsChanged),
+			content:  secretsDigest(secretsMount),
+		},
+		continueOnError: true,
+	}
+}
+
+// secretsDigest is a SHA-256 over the "name=value" entries, independent of
+// their order. Only the digest is stored, never a value.
+func secretsDigest(entries []string) string {
+	sorted := slices.Clone(entries)
+	slices.Sort(sorted)
+	h := sha256.New()
+	for _, entry := range sorted {
+		h.Write([]byte(entry))
+		h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // DeferredHooks holds lifecycle hooks that should run in the background

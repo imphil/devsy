@@ -7,6 +7,7 @@ import (
 
 	"github.com/devsy-org/devsy/pkg/clierr"
 	pkgconfig "github.com/devsy-org/devsy/pkg/config"
+	"github.com/devsy-org/devsy/pkg/types"
 )
 
 const UserLabel = pkgconfig.DockerUserLabel
@@ -155,6 +156,26 @@ func GetDevsyCustomizations(parsedConfig *DevContainerConfig) *DevsyCustomizatio
 	}
 
 	return devsy
+}
+
+// SecretsChangedCommands returns the onSecretsChangedCommand of every
+// "devsy" customization in the merged configuration (features first, the
+// devcontainer.json last), skipping entries that do not parse.
+func SecretsChangedCommands(mergedConfig *MergedDevContainerConfig) []types.LifecycleHook {
+	if mergedConfig == nil || mergedConfig.Customizations == nil {
+		return nil
+	}
+	var hooks []types.LifecycleHook
+	for _, entry := range mergedConfig.Customizations["devsy"] {
+		devsy := &DevsyCustomizations{}
+		if err := convert(entry, devsy); err != nil {
+			continue
+		}
+		if len(devsy.OnSecretsChangedCommand) > 0 {
+			hooks = append(hooks, devsy.OnSecretsChangedCommand)
+		}
+	}
+	return hooks
 }
 
 func GetVSCodeConfiguration(mergedConfig *MergedDevContainerConfig) *VSCodeCustomizations {

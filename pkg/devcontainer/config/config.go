@@ -610,6 +610,10 @@ type DevsyCustomizations struct {
 	FeatureDownloadHTTPHeaders map[string]string      `json:"featureDownloadHTTPHeaders,omitempty"`
 	SecretSources              []secrets.SourceConfig `json:"secretSources,omitempty"`
 	Secrets                    []string               `json:"secrets,omitempty"`
+	// OnSecretsChangedCommand runs in the container after Devsy writes the
+	// mount secrets into /run/secrets, whenever their values changed since it
+	// last ran (and on the first start). Same forms as the lifecycle hooks.
+	OnSecretsChangedCommand types.LifecycleHook `json:"onSecretsChangedCommand,omitempty"`
 }
 
 func (d *DevsyCustomizations) ToProjectConfig() *secrets.ProjectConfig {
